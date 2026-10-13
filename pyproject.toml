@@ -1,0 +1,77 @@
+[project]
+name = "b3-fetcher"
+version = "0.1.0"
+description = "Coletor das Cotações Históricas (COTAHIST) da B3"
+readme = "README.md"
+authors = [
+    { name = "Komesu, D.K.", email = "daniel@dkko.me" },
+]
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.12"
+keywords = [
+    "b3",
+    "bovespa",
+    "cotahist",
+    "cotacoes-historicas",
+    "mercado-de-capitais",
+    "brazil",
+    "open-data",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Typing :: Typed",
+]
+dependencies = [
+    "quantilica-core>=0.8.0",
+]
+
+[project.optional-dependencies]
+analysis = [
+    "polars>=1.0.0",
+    "quantilica-analytics>=0.3.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/Quantilica/b3-fetcher"
+Repository = "https://github.com/Quantilica/b3-fetcher"
+Issues = "https://github.com/Quantilica/b3-fetcher/issues"
+
+[project.scripts]
+b3-fetcher = "b3_fetcher.cli:main"
+
+[project.entry-points."quantilica.fetchers"]
+b3 = "b3_fetcher.plugin:app"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.9.0",
+    "pytest>=8.0.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["-p", "no:cacheprovider"]
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E501"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/b3_fetcher"]
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
