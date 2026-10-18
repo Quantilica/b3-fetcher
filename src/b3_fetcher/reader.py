@@ -16,7 +16,15 @@ from importlib import resources
 from pathlib import Path
 from typing import Any
 
-import polars as pl
+try:
+    import polars as pl
+    from quantilica.analytics.writer import to_parquet
+except ImportError as exc:
+    raise ImportError(
+        "b3_fetcher.reader requer o extra 'analysis'. "
+        "Instale com: uv add 'b3-fetcher[analysis]' "
+        "--index https://index.quantilica.com/simple/"
+    ) from exc
 
 from .constants import AUXILIARY_TABLES_DIR
 
@@ -174,3 +182,28 @@ def read_dimension(name: str) -> pl.DataFrame:
     with resources.as_file(_auxiliary_path(f"{name}.csv")) as path:
         df = pl.read_csv(path)
     return df.rename(_DIMENSION_RENAMES[name])
+
+
+def write_parquet(
+    df: pl.DataFrame,
+    target: Path,
+    *,
+    source_path: Path | None = None,
+) -> Path:
+    """Write a DataFrame as Parquet (zstd) with optional provenance.
+
+    Delegates to the canonical ``to_parquet`` from ``quantilica.analytics.writer``
+    (atomic write-temp-rename); when the raw source file has a
+    ``.manifest.json`` sidecar, the ``quantilica.*`` metadata are injected
+    into the Parquet and a provenance sidecar is written next to the target.
+
+    Args:
+        df: The DataFrame to write.
+        target: Destination path of the Parquet file.
+        source_path: Optional raw source file, used to inject the manifest
+            sidecar metadata.
+
+    Returns:
+        Path: The path of the written Parquet file.
+    """
+    return to_parquet(df, target, source_path=source_path)

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import datetime as dt
+import importlib
+import sys
 import zipfile
 from pathlib import Path
 
@@ -13,6 +15,7 @@ from b3_fetcher.reader import (
     LINE_LENGTH,
     read_dimension,
     read_records,
+    write_parquet,
 )
 
 FIXTURE = Path(__file__).parent / "fixtures" / "COTAHIST_D02012024.txt"
@@ -101,3 +104,85 @@ def test_read_dimension_renames_columns():
 def test_read_dimension_rejects_unknown():
     with pytest.raises(ValueError, match="Tabela auxiliar desconhecida"):
         read_dimension("nao-existe")
+
+
+def _manifest_for(raw: Path):
+    from quantilica.core.manifests import DownloadManifest, write_manifest_sidecar
+
+    manifest = DownloadManifest(
+        source_id="b3",
+        dataset_id="cotahist",
+        url="https://example.org/cotahist.zip",
+        fetched_at="2026-01-01T00:00:00Z",
+        sha256="abc123",
+        size_bytes=raw.stat().st_size,
+        path=str(raw),
+        producer="b3-fetcher",
+    )
+    write_manifest_sidecar(raw, manifest)
+
+
+def test_write_parquet_with_provenance(tmp_path: Path):
+    raw = tmp_path / "COTAHIST_D02012024.txt"
+    raw.write_bytes(FIXTURE.read_bytes())
+    _manifest_for(raw)
+
+    df = pl.DataFrame({"a": [1, 2], "b": ["x", "y"]})
+    target = tmp_path / "out" / "cotahist.parquet"
+
+    result = write_parquet(df, target, source_path=raw)
+
+    assert result == target
+    assert target.exists()
+    assert pl.read_parquet(target).shape == (2, 2)
+
+    sidecar = tmp_path / "out" / "cotahist.parquet.manifest.json"
+    assert sidecar.exists()
+    assert (
+        '"sha256": "abc123"' in sidecar.read_text() or "abc123" in sidecar.read_text()
+    )
+
+    import pyarrow.parquet as pq
+
+    keys = {
+        k.decode() if isinstance(k, bytes) else k: v.decode()
+        if isinstance(v, bytes)
+        else v
+        for k, v in pq.read_metadata(target).metadata.items()
+    }
+    assert keys["quantilica.dataset_id"] == "cotahist"
+    assert keys["quantilica.origin_sha256"] == "abc123"
+    assert keys["quantilica.source_id"] == "b3"
+
+
+def test_write_parquet_without_source_writes_no_sidecar(tmp_path: Path):
+    df = pl.DataFrame({"a": [1, 2]})
+    target = tmp_path / "plain.parquet"
+
+    result = write_parquet(df, target)
+
+    assert result.exists()
+    assert not (tmp_path / "plain.parquet.manifest.json").exists()
+
+
+def test_analysis_extra_mensagem_acionavel():
+    saved_polars = sys.modules.get("polars")
+    saved_analytics = sys.modules.get("quantilica.analytics.writer")
+    try:
+        sys.modules["quantilica.analytics.writer"] = None
+        sys.modules.pop("b3_fetcher.reader", None)
+        with pytest.raises(
+            ImportError, match="b3_fetcher.reader requer o extra 'analysis'"
+        ):
+            importlib.import_module("b3_fetcher.reader")
+    finally:
+        sys.modules.pop("b3_fetcher.reader", None)
+        if saved_analytics is not None:
+            sys.modules["quantilica.analytics.writer"] = saved_analytics
+        else:
+            sys.modules.pop("quantilica.analytics.writer", None)
+        if saved_polars is not None:
+            sys.modules["polars"] = saved_polars
+        else:
+            sys.modules.pop("polars", None)
+        importlib.import_module("b3_fetcher.reader")

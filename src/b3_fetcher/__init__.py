@@ -44,13 +44,14 @@ __all__ = [
 ]
 
 try:
-    from .reader import read_dimension, read_records
+    from .reader import read_dimension, read_records, write_parquet
 
     _HAS_ANALYSIS = True
 except ImportError:
     _HAS_ANALYSIS = False
     read_records = None
     read_dimension = None
+    write_parquet = None
 
 if _HAS_ANALYSIS:
-    __all__.extend(["read_records", "read_dimension"])
+    __all__.extend(["read_records", "read_dimension", "write_parquet"])
