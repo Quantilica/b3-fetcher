@@ -5,7 +5,19 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
-## [0.1.0] - 2026-10-12
+## [0.1.0] - 2026-10-20
+
+### Corrigido (antes da primeira publicação)
+
+- `reader`: campos com vírgula implícita (preços, volume, `preco_exercicio_pontos`)
+  passam a `Decimal` exato, com precisão igual ao tamanho do campo e escala tirada
+  do próprio layout (`(11)V99` em 13 posições → 2 casas; `(07)V06` → 6). Antes a
+  divisão era feita em `Float64`: R$ 37,80 saía como `37.800000000000004`.
+- `reader`: conversões estritas. Campo em branco vira nulo; qualquer outro valor que
+  não caiba no tipo do layout (número, data) levanta erro em vez de virar nulo.
+- Conferido em 2026-10-20 com os 40 arquivos anuais de 1986 a 2025: nenhum erro nem
+  nulo; nos 9.834 pregões em comum com uma carga anterior de referência, 9.832 têm
+  contagem, soma do último preço e soma do volume idênticas.
 
 ### Adicionado
 
