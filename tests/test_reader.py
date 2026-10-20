@@ -6,6 +6,7 @@ import datetime as dt
 import importlib
 import sys
 import zipfile
+from decimal import Decimal
 from pathlib import Path
 
 import polars as pl
@@ -13,6 +14,7 @@ import pytest
 
 from b3_fetcher.reader import (
     LINE_LENGTH,
+    _layout,
     read_dimension,
     read_records,
     write_parquet,
@@ -42,7 +44,9 @@ def test_read_records_schema(records: pl.DataFrame):
     assert schema["data"] == pl.Date
     assert schema["data_vencimento"] == pl.Date
     assert schema["simbolo"] == pl.Utf8
-    assert schema["preco_ultimo_negocio"] == pl.Float64
+    assert schema["preco_ultimo_negocio"] == pl.Decimal(precision=13, scale=2)
+    assert schema["volume_negociado"] == pl.Decimal(precision=18, scale=2)
+    assert schema["preco_exercicio_pontos"] == pl.Decimal(precision=13, scale=6)
     assert schema["quantidade_negocios"] == pl.Int64
     assert schema["quantidade_titulos_negociados"] == pl.Int64
     assert schema["indice_correcao_id"] == pl.Int64
@@ -58,16 +62,105 @@ def test_read_records_values_for_aalr3(records: pl.DataFrame):
     assert row["nome_resumido"] == "ALLIAR"
     assert row["especificacao_id"] == "ON NM"
     assert row["simbolo_moeda"] == "R$"
-    assert row["preco_abertura"] == pytest.approx(10.20)
-    assert row["preco_maximo"] == pytest.approx(10.36)
-    assert row["preco_minimo"] == pytest.approx(8.50)
-    assert row["preco_ultimo_negocio"] == pytest.approx(8.50)
+    assert row["preco_abertura"] == Decimal("10.20")
+    assert row["preco_maximo"] == Decimal("10.36")
+    assert row["preco_minimo"] == Decimal("8.50")
+    assert row["preco_ultimo_negocio"] == Decimal("8.50")
     assert row["quantidade_negocios"] == 1993
     assert row["quantidade_titulos_negociados"] == 430400
-    assert row["volume_negociado"] == pytest.approx(4014875.00)
+    assert row["volume_negociado"] == Decimal("4014875.00")
     assert row["data_vencimento"] == dt.date(9999, 12, 31)
     assert row["codisi"] == "BRAALRACNOR6"
     assert row["dismes"] == 102
+
+
+def _detail_line(**fields: str) -> str:
+    """First ``01`` line of the fixture with some fields replaced (raw text)."""
+    lines = FIXTURE.read_text(encoding="latin-1").splitlines()
+    line = next(line for line in lines if line[:2] == "01")
+    layout = {field["normalized"]: field for field in _layout()}
+    for name, value in fields.items():
+        field = layout[name]
+        assert len(value) == field["length"], name
+        line = line[: field["start"] - 1] + value + line[field["end"] :]
+    assert len(line) == LINE_LENGTH
+    return line
+
+
+def _read_line(tmp_path: Path, line: str) -> pl.DataFrame:
+    path = tmp_path / "one.txt"
+    path.write_text(line + "\n", encoding="latin-1")
+    return read_records(path)
+
+
+def test_layout_derives_scale_from_implied_decimal_point():
+    layout = {field["normalized"]: field for field in _layout()}
+    # (11)V99 in 13 positions, (16)V99 in 18, (07)V06 in 13.
+    assert (
+        layout["preco_abertura"]["length"],
+        layout["preco_abertura"]["decimals"],
+    ) == (13, 2)
+    assert (
+        layout["volume_negociado"]["length"],
+        layout["volume_negociado"]["decimals"],
+    ) == (18, 2)
+    assert (
+        layout["preco_exercicio_pontos"]["length"],
+        layout["preco_exercicio_pontos"]["decimals"],
+    ) == (13, 6)
+
+
+def test_implied_decimal_is_exact_not_float(tmp_path: Path):
+    # 3780 in a (11)V99 field is R$ 37,80; as float it would read
+    # 37.800000000000004 (seen with PETR4 on 2024-06-28).
+    line = _detail_line(
+        preco_abertura="0000000003780",
+        volume_negociado="000000083621636600",
+        preco_exercicio_pontos="0000001234567",
+    )
+    row = _read_line(tmp_path, line).row(0, named=True)
+    assert row["preco_abertura"] == Decimal("37.80")
+    assert str(row["preco_abertura"]) == "37.80"
+    assert row["volume_negociado"] == Decimal("836216366.00")
+    assert row["preco_exercicio_pontos"] == Decimal("1.234567")
+
+
+def test_largest_values_fit_their_decimal_type(tmp_path: Path):
+    line = _detail_line(
+        preco_abertura="9" * 13,
+        volume_negociado="9" * 18,
+        quantidade_titulos_negociados="9" * 18,
+    )
+    row = _read_line(tmp_path, line).row(0, named=True)
+    assert row["preco_abertura"] == Decimal("99999999999.99")
+    assert row["volume_negociado"] == Decimal("9999999999999999.99")
+    assert row["quantidade_titulos_negociados"] == 999_999_999_999_999_999
+
+
+def test_blank_numeric_and_date_fields_become_null(tmp_path: Path):
+    line = _detail_line(
+        preco_abertura=" " * 13,
+        quantidade_negocios=" " * 5,
+        data_vencimento=" " * 8,
+    )
+    row = _read_line(tmp_path, line).row(0, named=True)
+    assert row["preco_abertura"] is None
+    assert row["quantidade_negocios"] is None
+    assert row["data_vencimento"] is None
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("preco_abertura", "00000000037X0"),
+        ("quantidade_negocios", "01A93"),
+        ("data_vencimento", "20241332"),
+    ],
+)
+def test_invalid_values_raise_instead_of_becoming_null(tmp_path: Path, field, value):
+    line = _detail_line(**{field: value})
+    with pytest.raises(pl.exceptions.InvalidOperationError):
+        _read_line(tmp_path, line)
 
 
 def test_read_records_reads_zip(tmp_path: Path):

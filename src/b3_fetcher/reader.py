@@ -11,6 +11,7 @@ Requires the ``analysis`` extra (``polars``).
 from __future__ import annotations
 
 import csv
+import re
 import zipfile
 from importlib import resources
 from pathlib import Path
@@ -36,10 +37,10 @@ ENCODING = "latin-1"
 
 _DATE_FIELDS = frozenset({"DATA", "DATVEN"})
 
-# Campos com vírgula implícita: por padrão 2 casas decimais (preços/volume);
-# ``preco_exercicio_pontos`` (PTOEXE) usa 6 conforme o layout da B3.
-_DECIMAL_PLACES: dict[str, int] = {"preco_exercicio_pontos": 6}
-_DEFAULT_DECIMALS = 2
+# Campos com vírgula implícita trazem no layout o número de dígitos inteiros,
+# como ``(11)V99`` (PREABE, 13 posições) ou ``(07)V06`` (PTOEXE, 13 posições):
+# as casas decimais são as posições restantes do campo.
+_INTEGER_DIGITS = re.compile(r"^\((\d+)\)V")
 
 _DIMENSION_RENAMES: dict[str, dict[str, str]] = {
     "codbdi": {"CODBDI": "bdi_id", "DESCRIÇÃO": "bdi"},
@@ -87,18 +88,24 @@ def _layout() -> list[dict[str, Any]]:
     fields: list[dict[str, Any]] = []
     for row in _read_auxiliary_csv("registro01.csv"):
         normalized = row["nome_normalizado"].strip()
-        kind = _classify(row["TIPO E TAMANHO"])
-        decimals = (
-            _DECIMAL_PLACES.get(normalized, _DEFAULT_DECIMALS)
-            if kind == "decimal"
-            else 0
-        )
+        tipo = row["TIPO E TAMANHO"].strip()
+        kind = _classify(tipo)
+        start = int(row["POS. INIC."])
+        end = int(row["POS. FINAL"])
+        length = end - start + 1
+        decimals = 0
+        if kind == "decimal":
+            match = _INTEGER_DIGITS.match(tipo)
+            if not match or int(match.group(1)) >= length:
+                raise ValueError(f"Layout decimal inválido para {normalized}: {tipo}")
+            decimals = length - int(match.group(1))
         fields.append(
             {
                 "raw_name": row["NOME DO CAMPO"].strip(),
                 "normalized": normalized,
-                "start": int(row["POS. INIC."]),
-                "end": int(row["POS. FINAL"]),
+                "start": start,
+                "end": end,
+                "length": length,
                 "kind": kind,
                 "decimals": decimals,
             }
@@ -106,23 +113,39 @@ def _layout() -> list[dict[str, Any]]:
     return fields
 
 
+def _blank_to_null(expr: pl.Expr) -> pl.Expr:
+    """Strip a field and turn an all-blank field into null (never other values)."""
+    stripped = expr.str.strip_chars()
+    return pl.when(stripped == "").then(None).otherwise(stripped)
+
+
 def _field_expr(field: dict[str, Any]) -> pl.Expr:
-    """Build the Polars expression that extracts and casts one field."""
+    """Build the Polars expression that extracts and casts one field.
+
+    Conversions are strict: a blank field becomes null, and any other value
+    that does not fit the layout type raises instead of becoming null.
+    Fields with an implied decimal point become exact ``Decimal`` values
+    (precision = field length, scale = decimal places), never floats.
+    """
     start = field["start"] - 1
-    length = field["end"] - field["start"] + 1
-    raw = pl.col("__raw").str.slice(start, length)
+    raw = pl.col("__raw").str.slice(start, field["length"])
     name = field["normalized"]
 
     if field["raw_name"] in _DATE_FIELDS:
-        return raw.str.strip_chars().str.to_date("%Y%m%d", strict=False).alias(name)
+        return _blank_to_null(raw).str.to_date("%Y%m%d", strict=True).alias(name)
     if field["kind"] == "text":
         collapsed = raw.str.replace_all(r"\s+", " ")
         return collapsed.str.strip_chars().alias(name)
     if field["kind"] == "int":
-        return raw.str.strip_chars().cast(pl.Int64, strict=False).alias(name)
+        return _blank_to_null(raw).cast(pl.Int64, strict=True).alias(name)
     if field["kind"] == "decimal":
-        scaled = raw.str.strip_chars().cast(pl.Int64, strict=False).cast(pl.Float64)
-        return (scaled / 10 ** field["decimals"]).alias(name)
+        decimals = field["decimals"]
+        digits = _blank_to_null(raw).str.zfill(decimals + 1)
+        text = pl.concat_str(
+            [digits.str.head(-decimals), pl.lit("."), digits.str.tail(decimals)]
+        )
+        dtype = pl.Decimal(precision=field["length"], scale=decimals)
+        return text.cast(dtype, strict=True).alias(name)
     return raw.alias(name)
 
 
