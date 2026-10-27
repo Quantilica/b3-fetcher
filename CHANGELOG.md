@@ -17,6 +17,7 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
   e workers.
 - Comandos `convert` e `pipeline` integrados ao `FetcherApp` com suporte a
   `--lake`, `--dataset` e `--force`.
+- Dependência `quantilica-core` atualizada para `>=0.13.0` e, no extra `analysis`, `quantilica-analytics` para `>=0.5.0`: são as primeiras versões com o contrato e o escritor do lake.
 
 ## [0.1.0] - 2026-10-20
 
