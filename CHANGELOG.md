@@ -5,6 +5,19 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [0.2.0] - 2026-10-27
+
+### Adicionado
+
+- `lake`: suporte à conversão para o Parquet Lake Hive padronizado do ecossistema
+  (`cotahist/ano=<ano>/<file_key>.parquet`), gerando `_dataset.json` com metadados
+  e schema auditáveis.
+- Entry point `quantilica.lake` registrando `b3 = "b3_fetcher.lake:converter"`
+  para orquestração unificada de conversão via CLI (`quantilica lake convert`)
+  e workers.
+- Comandos `convert` e `pipeline` integrados ao `FetcherApp` com suporte a
+  `--lake`, `--dataset` e `--force`.
+
 ## [0.1.0] - 2026-10-20
 
 ### Corrigido (antes da primeira publicação)

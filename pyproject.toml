@@ -1,6 +1,6 @@
 [project]
 name = "b3-fetcher"
-version = "0.1.0"
+version = "0.2.0"
 description = "Coletor das Cotações Históricas (COTAHIST) da B3"
 readme = "README.md"
 authors = [
@@ -36,7 +36,7 @@ dependencies = [
 [project.optional-dependencies]
 analysis = [
     "polars>=1.0.0",
-    "quantilica-analytics>=0.4.0",
+    "quantilica-analytics>=0.8.0",
 ]
 
 [project.urls]
@@ -49,6 +49,9 @@ b3-fetcher = "b3_fetcher.cli:main"
 
 [project.entry-points."quantilica.fetchers"]
 b3 = "b3_fetcher.plugin:app"
+
+[project.entry-points."quantilica.lake"]
+b3 = "b3_fetcher.lake:converter"
 
 [dependency-groups]
 dev = [
