@@ -279,3 +279,16 @@ def test_analysis_extra_mensagem_acionavel():
         else:
             sys.modules.pop("polars", None)
         importlib.import_module("b3_fetcher.reader")
+
+
+def test_registro_em_utf8_nao_desloca_os_campos(tmp_path: Path):
+    # 2026: "FROTA OCEÂNI" em UTF-8 num arquivo Latin-1 deslocava o DATVEN.
+    line = _detail_line(nome_resumido="FROTA OCEÂNI")
+    path = tmp_path / "one.txt"
+    path.write_bytes(line.encode("utf-8") + b"\r\n")
+    row = read_records(path).row(0, named=True)
+    assert row["nome_resumido"] == "FROTA OCEÂNI"
+    assert (
+        row["data_vencimento"]
+        == _read_line(tmp_path, _detail_line()).row(0, named=True)["data_vencimento"]
+    )

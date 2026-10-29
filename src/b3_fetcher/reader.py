@@ -162,12 +162,31 @@ def _read_lines(filepath: Path) -> list[str]:
             # Arquivos recentes usam extensão .TXT; os antigos trazem um único
             # membro sem extensão (ex.: COTAHIST.A1986).
             txt = [name for name in members if name.lower().endswith(".txt")]
-            return (
-                archive.read(txt[0] if txt else members[0])
-                .decode(ENCODING)
-                .splitlines()
-            )
-    return path.read_text(encoding=ENCODING).splitlines()
+            return _decode_lines(archive.read(txt[0] if txt else members[0]))
+    return _decode_lines(path.read_bytes())
+
+
+def _decode_lines(data: bytes) -> list[str]:
+    """Decode the records as Latin-1, except the ones written in UTF-8.
+
+    A few records come in UTF-8 (``FROTA OCEÂNI`` in 2026): read as Latin-1, the
+    two bytes of ``Â`` become two characters and every later field shifts by one
+    (``DATVEN`` = ``09999123``). A record longer than the layout that decodes to
+    the right length as UTF-8 is taken as UTF-8.
+    """
+    lines = []
+    for raw in data.splitlines():
+        line = raw.decode(ENCODING)
+        if len(raw) > LINE_LENGTH:
+            try:
+                utf8 = raw.decode("utf-8")
+            except UnicodeDecodeError:
+                pass
+            else:
+                if len(utf8) == LINE_LENGTH:
+                    line = utf8
+        lines.append(line)
+    return lines
 
 
 def read_records(filepath: Path) -> pl.DataFrame:

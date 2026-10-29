@@ -5,6 +5,14 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [Unreleased]
+
+### Corrigido
+
+- `read_records` lê como UTF-8 o registro que vem nessa codificação num arquivo Latin-1
+  (`FROTA OCEÂNI`, em 2026). Lido como Latin-1, ele ficava com um caractere a mais e
+  deslocava os campos seguintes; o vencimento `09999123` impedia a conversão do ano.
+
 ## [0.2.0] - 2026-10-27
 
 ### Adicionado
