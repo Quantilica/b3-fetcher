@@ -8,7 +8,7 @@ from typing import Any
 
 from quantilica.cli.sdk import FetcherApp
 
-from .catalog import GROUP_ALIASES, GROUPS, list_datasets
+from .catalog import ALL_GROUP_ALIASES, ALL_GROUPS, list_datasets
 from .storage import DataRepository
 
 
@@ -31,8 +31,8 @@ def path_builder(
 fetcher = FetcherApp(
     name="b3-fetcher",
     help="Cotações Históricas (COTAHIST) da B3.",
-    groups_dict=GROUPS,
-    aliases_dict=GROUP_ALIASES,
+    groups_dict=ALL_GROUPS,
+    aliases_dict=ALL_GROUP_ALIASES,
     list_datasets=list_datasets,
     path_builder=path_builder,
 )
