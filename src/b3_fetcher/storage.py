@@ -45,7 +45,8 @@ class DataRepository(BaseDataRepository):
         """
         year = entry["year"]
         ext = entry.get("ext", "zip")
+        timestamp = last_modified or dt.date.today()
         filename = build_stamped_filename(
-            DATASET_ID, year, ext=ext, timestamp=last_modified
+            DATASET_ID, year, ext=ext, timestamp=timestamp
         )
         return self.dataset_path(DATASET_ID, str(year), filename)

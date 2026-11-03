@@ -20,7 +20,28 @@ def test_path_for_entry_partitions_by_year(tmp_path: Path):
 
 
 def test_path_for_entry_without_timestamp(tmp_path: Path):
+    """When last_modified is not provided (defaults to None), fallback to today's date."""
+    from datetime import date
+
+    today = date.today()
+    today_str = today.strftime("%Y%m%d")
+
     path = DataRepository(tmp_path).path_for_entry({"year": 1999, "ext": "zip"})
 
-    assert path.name == "cotacaohistorica_1999.zip"
+    assert path.name == f"cotacaohistorica_1999@{today_str}.zip"
     assert path.parent.name == "1999"
+
+
+def test_path_for_entry_fallback_timestamp(tmp_path: Path):
+    """When last_modified is None, filename should get today's @YYYYMMDD stamp."""
+    from datetime import date
+
+    today = date.today()
+    today_str = today.strftime("%Y%m%d")
+
+    path = DataRepository(tmp_path).path_for_entry(
+        {"year": 2025, "ext": "zip"}, last_modified=None
+    )
+
+    assert f"cotacaohistorica_2025@{today_str}.zip" == path.name
+    assert path.parent.name == "2025"
