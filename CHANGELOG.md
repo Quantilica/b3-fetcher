@@ -7,6 +7,31 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ## [0.3.0] - 2026-11-04
 
+### Adicionado
+- Coleta de `derivativos_agro` e `indices_carteiras` (TC-01). `derivativos_agro` baixa o
+  `DerivativesOpenPosition` pelo protocolo A4 de duas etapas (`requestname` -> token ->
+  `download/?token=`; `400` vira "sem arquivo" e é ignorado sem erro), uma entrada por dia
+  útil da janela (`B3_LOOKBACK_DAYS`, padrão 5). `indices_carteiras` lê o `GetPortfolioDay`
+  de IBOV, IBRX100 (código `IBXX` na API), SMLL, IDIV, IFIX e IFIL; o endpoint só serve a
+  carteira vigente e o arquivo leva a data do cabeçalho da resposta.
+- Lake: `derivativos_agro` com partições `ano/mes/dia/contrato` (segmento `AGRIBUSINESS`,
+  um Parquet por ativo-objeto: BGI, CCM, ICF, SJC, ETH, CNL...) e `indices_carteiras` com
+  `indice/ano/mes/dia`, pesos como decimal e quantidade teórica inteira.
+- `B3FetcherApp`: `check` informa `skip-unavailable` para data sem arquivo.
+
+### Removido
+- Grupo `btc_posicoes_abertas` (e o dataset do Lake): não tinha URL e a sondagem de
+  2026-11-03 não achou `fileName` do `requestname` para o empréstimo de ativos. Não há
+  stub; reabrir quando houver fonte (nota de sondagem no repositório `planning`).
+
+### Alterado
+- `resolve_b3_dataset`/`resolve_b3_partitions` não caem mais em `cotacaohistorica`, em
+  01/01 ou na data de hoje: arquivo cujo dataset, data ou índice não se infere do nome vira
+  erro contado em `ConvertResult.errors`.
+- Colunas de código passam a ser reconhecidas por nome exato/ISIN/ticker/CNPJ; antes
+  `contratos_em_aberto` casava com `contrato` e virava texto.
+- A conversão ignora os sidecars `*.manifest.json`.
+
 ### Corrigido
 - Política de frescor volta a F2 (`HEAD_FALLBACK_GET`): `REMOTE_ONLY` (F3, para fontes sem validadores) causava re-download diário de fontes com Last-Modified/ETag, porque descartava o Last-Modified e o nome do arquivo caía em `@hoje`.
 

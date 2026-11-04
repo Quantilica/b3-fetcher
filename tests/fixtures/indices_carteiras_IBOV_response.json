@@ -1,0 +1,127 @@
+{
+ "page": {
+  "pageNumber": -1,
+  "pageSize": -1,
+  "totalRecords": 12,
+  "totalPages": -76
+ },
+ "header": {
+  "date": "03/11/26",
+  "text": "Quantidade Teórica Total",
+  "part": "100,000",
+  "partAcum": null,
+  "textReductor": "Redutor",
+  "reductor": "13.998.953,64015646",
+  "theoricalQty": "93.803.750.400"
+ },
+ "results": [
+  {
+   "segment": null,
+   "cod": "ALOS3",
+   "asset": "ALLOS",
+   "type": "ON  ED  NM",
+   "part": "0,479",
+   "partAcum": null,
+   "theoricalQty": "478.975.645"
+  },
+  {
+   "segment": null,
+   "cod": "ABEV3",
+   "asset": "AMBEV S/A",
+   "type": "ON",
+   "part": "2,511",
+   "partAcum": null,
+   "theoricalQty": "4.043.349.180"
+  },
+  {
+   "segment": null,
+   "cod": "ASAI3",
+   "asset": "ASSAI",
+   "type": "ON      NM",
+   "part": "0,448",
+   "partAcum": null,
+   "theoricalQty": "1.335.651.252"
+  },
+  {
+   "segment": null,
+   "cod": "AURE3",
+   "asset": "AUREN",
+   "type": "ON      NM",
+   "part": "0,147",
+   "partAcum": null,
+   "theoricalQty": "317.886.569"
+  },
+  {
+   "segment": null,
+   "cod": "AXIA3",
+   "asset": "AXIA ENERGIA",
+   "type": "ON      NM",
+   "part": "4,598",
+   "partAcum": null,
+   "theoricalQty": "2.278.697.967"
+  },
+  {
+   "segment": null,
+   "cod": "AZZA3",
+   "asset": "AZZAS 2154",
+   "type": "ON  ATZ NM",
+   "part": "0,080",
+   "partAcum": null,
+   "theoricalQty": "130.746.665"
+  },
+  {
+   "segment": null,
+   "cod": "B3SA3",
+   "asset": "B3",
+   "type": "ON      NM",
+   "part": "2,848",
+   "partAcum": null,
+   "theoricalQty": "4.985.893.391"
+  },
+  {
+   "segment": null,
+   "cod": "BBSE3",
+   "asset": "BBSEGURIDADE",
+   "type": "ON      NM",
+   "part": "1,083",
+   "partAcum": null,
+   "theoricalQty": "616.248.544"
+  },
+  {
+   "segment": null,
+   "cod": "BBDC3",
+   "asset": "BRADESCO",
+   "type": "ON      N1",
+   "part": "0,792",
+   "partAcum": null,
+   "theoricalQty": "1.464.434.502"
+  },
+  {
+   "segment": null,
+   "cod": "BBDC4",
+   "asset": "BRADESCO",
+   "type": "PN      N1",
+   "part": "3,008",
+   "partAcum": null,
+   "theoricalQty": "5.100.907.585"
+  },
+  {
+   "segment": null,
+   "cod": "BRAP4",
+   "asset": "BRADESPAR",
+   "type": "PN      N1",
+   "part": "0,195",
+   "partAcum": null,
+   "theoricalQty": "250.886.751"
+  },
+  {
+   "segment": null,
+   "cod": "BBAS3",
+   "asset": "BRASIL",
+   "type": "ON      NM",
+   "part": "1,992",
+   "partAcum": null,
+   "theoricalQty": "2.842.760.965"
+  }
+ ]
+}

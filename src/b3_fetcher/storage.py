@@ -45,8 +45,27 @@ class DataRepository(BaseDataRepository):
         """
         year = entry["year"]
         ext = entry.get("ext", "zip")
+        if entry.get("protocol") in ("requestname", "portfolio"):
+            return self.path_for_daily_entry(entry)
         timestamp = last_modified or dt.date.today()
         filename = build_stamped_filename(
             DATASET_ID, year, ext=ext, timestamp=timestamp
         )
         return self.dataset_path(DATASET_ID, str(year), filename)
+
+    def path_for_daily_entry(self, entry: dict[str, Any]) -> Path:
+        """Path of a daily file, ``<grupo>/<ano>/<grupo>[-<indice>]-<data>.<ext>``.
+
+        The data date is part of the name and the file is final, so the path does
+        not depend on ``Last-Modified`` (the B3 token endpoint has no ``HEAD``).
+        """
+        group = str(entry["group"])
+        date = str(entry["date"])
+        label = (
+            f"{group}-{entry['indice']}-{date}"
+            if "indice" in entry
+            else (f"{group}-{date}")
+        )
+        return self.dataset_path(
+            group, str(entry["year"]), f"{label}.{entry.get('ext', 'csv')}"
+        )
