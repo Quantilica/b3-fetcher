@@ -1,6 +1,6 @@
 [project]
 name = "b3-fetcher"
-version = "0.2.1"
+version = "0.3.0"
 description = "Coletor das Cotações Históricas (COTAHIST) da B3"
 readme = "README.md"
 authors = [
