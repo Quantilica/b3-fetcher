@@ -5,7 +5,7 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
-## [0.3.0] - 2026-11-04
+## [0.4.0] - 2026-11-04
 
 ### Adicionado
 - Coleta de `derivativos_agro` e `indices_carteiras` (TC-01). `derivativos_agro` baixa o
@@ -25,12 +25,9 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
   stub; reabrir quando houver fonte (nota de sondagem no repositório `planning`).
 
 ### Alterado
-- `resolve_b3_dataset`/`resolve_b3_partitions` não caem mais em `cotacaohistorica`, em
-  01/01 ou na data de hoje: arquivo cujo dataset, data ou índice não se infere do nome vira
-  erro contado em `ConvertResult.errors`.
-- Colunas de código passam a ser reconhecidas por nome exato/ISIN/ticker/CNPJ; antes
-  `contratos_em_aberto` casava com `contrato` e virava texto.
-- A conversão ignora os sidecars `*.manifest.json`.
+
+
+## [0.3.0] - 2026-11-04
 
 ### Corrigido
 - Política de frescor volta a F2 (`HEAD_FALLBACK_GET`): `REMOTE_ONLY` (F3, para fontes sem validadores) causava re-download diário de fontes com Last-Modified/ETag, porque descartava o Last-Modified e o nome do arquivo caía em `@hoje`.
