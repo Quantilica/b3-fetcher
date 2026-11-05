@@ -59,7 +59,9 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ## [0.1.0] - 2026-10-20
 
-### Corrigido (antes da primeira publicação)
+### Corrigido
+
+_(antes da primeira publicação)_
 
 - `reader`: campos com vírgula implícita (preços, volume, `preco_exercicio_pontos`)
   passam a `Decimal` exato, com precisão igual ao tamanho do campo e escala tirada
