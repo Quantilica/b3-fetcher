@@ -127,7 +127,10 @@ class B3FetcherApp(FetcherApp):
         )
 
 
+_DEFAULT_OUTPUT = Path("/data/b3")
+
 fetcher = B3FetcherApp(
+    default_output=_DEFAULT_OUTPUT,
     name="b3-fetcher",
     help="Cotações Históricas (COTAHIST), derivativos agro e índices da B3.",
     groups_dict=ALL_GROUPS,
@@ -146,7 +149,13 @@ def convert(
     force: bool = False,
 ) -> Any:
     """Converte arquivos brutos da B3 (COTAHIST, derivativos, índices) para o lake."""
-    from b3_fetcher import lake
+    try:
+        from b3_fetcher import lake
+    except ImportError as exc:
+        raise ImportError(
+            "Conversão para o lake requer o extra 'analysis'. "
+            "Instale com: quantilica install b3 --extra analysis"
+        ) from exc
 
     return lake.converter.convert(input_dir, lake_dir, datasets=dataset, force=force)
 
