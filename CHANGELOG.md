@@ -5,6 +5,11 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [Não lançado]
+
+### Corrigido
+- `convert` sem o extra `analysis` falha com a instrução de instalação (`quantilica install b3 --extra analysis`) em vez de um erro de import genérico, e o `sync` passa a ter diretório de saída padrão fixo.
+
 ## [0.4.0] - 2026-11-04
 
 ### Adicionado
