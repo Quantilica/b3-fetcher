@@ -53,7 +53,7 @@ EXPANDED_GROUPS = {
 
 # ``btc_posicoes_abertas`` (empréstimo de ativos) não está aqui de propósito: a
 # sondagem de 2026-11-03 não achou ``fileName`` do ``requestname`` nem tabela para
-# ele (ver planning/notes/2026-11-04-sondagem-b3-btc.md). Sem fonte, sem dataset.
+# ele. Sem fonte, sem dataset.
 
 EXPANDED_GROUP_ALIASES: dict[str, list[str]] = {
     "derivativos-agro": ["derivativos_agro"],
