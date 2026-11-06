@@ -7,6 +7,8 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ## [Não lançado]
 
+## [0.4.1] - 2026-11-05
+
 ### Corrigido
 - `convert` sem o extra `analysis` falha com a instrução de instalação (`quantilica install b3 --extra analysis`) em vez de um erro de import genérico, e o `sync` passa a ter diretório de saída padrão fixo.
 
