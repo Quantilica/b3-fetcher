@@ -1,0 +1,116 @@
+{
+  "fonte": "b3",
+  "dataset": "derivativos_agro",
+  "gerado_em": "2026-11-09T14:11:16+00:00",
+  "particoes": [
+    "ano",
+    "mes",
+    "dia",
+    "contrato"
+  ],
+  "colunas": [
+    {
+      "nome": "data_referencia",
+      "tipos": [
+        "date32[day]"
+      ]
+    },
+    {
+      "nome": "ticker",
+      "tipos": [
+        "large_string"
+      ]
+    },
+    {
+      "nome": "codigo_isin",
+      "tipos": [
+        "large_string"
+      ]
+    },
+    {
+      "nome": "ativo_objeto",
+      "tipos": [
+        "large_string"
+      ]
+    },
+    {
+      "nome": "codigo_vencimento",
+      "tipos": [
+        "large_string"
+      ]
+    },
+    {
+      "nome": "segmento",
+      "tipos": [
+        "large_string"
+      ]
+    },
+    {
+      "nome": "contratos_em_aberto",
+      "tipos": [
+        "int64"
+      ]
+    },
+    {
+      "nome": "variacao_contratos_em_aberto",
+      "tipos": [
+        "int64"
+      ]
+    },
+    {
+      "nome": "id_distribuicao",
+      "tipos": [
+        "large_string"
+      ]
+    },
+    {
+      "nome": "qtd_coberta",
+      "tipos": [
+        "int64"
+      ]
+    },
+    {
+      "nome": "total_posicoes_bloqueadas",
+      "tipos": [
+        "int64"
+      ]
+    },
+    {
+      "nome": "qtd_descoberta",
+      "tipos": [
+        "int64"
+      ]
+    },
+    {
+      "nome": "total_posicoes",
+      "tipos": [
+        "int64"
+      ]
+    },
+    {
+      "nome": "qtd_tomador",
+      "tipos": [
+        "int64"
+      ]
+    },
+    {
+      "nome": "qtd_doador",
+      "tipos": [
+        "int64"
+      ]
+    },
+    {
+      "nome": "qtd_atual",
+      "tipos": [
+        "int64"
+      ]
+    },
+    {
+      "nome": "preco_termo",
+      "tipos": [
+        "decimal128(28, 8)"
+      ]
+    }
+  ],
+  "arquivos": 11
+}

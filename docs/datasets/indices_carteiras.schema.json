@@ -1,0 +1,74 @@
+{
+  "fonte": "b3",
+  "dataset": "indices_carteiras",
+  "gerado_em": "2026-11-09T14:11:16+00:00",
+  "particoes": [
+    "indice",
+    "ano",
+    "mes",
+    "dia"
+  ],
+  "colunas": [
+    {
+      "nome": "segmento",
+      "tipos": [
+        "large_string"
+      ]
+    },
+    {
+      "nome": "ticker",
+      "tipos": [
+        "large_string"
+      ]
+    },
+    {
+      "nome": "nome",
+      "tipos": [
+        "large_string"
+      ]
+    },
+    {
+      "nome": "especie",
+      "tipos": [
+        "large_string"
+      ]
+    },
+    {
+      "nome": "participacao_pct",
+      "tipos": [
+        "decimal128(12, 6)"
+      ]
+    },
+    {
+      "nome": "participacao_acumulada_pct",
+      "tipos": [
+        "decimal128(12, 6)"
+      ]
+    },
+    {
+      "nome": "qtd_teorica",
+      "tipos": [
+        "int64"
+      ]
+    },
+    {
+      "nome": "data_carteira",
+      "tipos": [
+        "date32[day]"
+      ]
+    },
+    {
+      "nome": "redutor",
+      "tipos": [
+        "decimal128(28, 8)"
+      ]
+    },
+    {
+      "nome": "qtd_teorica_total",
+      "tipos": [
+        "int64"
+      ]
+    }
+  ],
+  "arquivos": 7
+}

@@ -1,0 +1,167 @@
+{
+  "fonte": "b3",
+  "dataset": "cotacaohistorica",
+  "gerado_em": "2026-11-09T14:11:16+00:00",
+  "particoes": [
+    "ano"
+  ],
+  "colunas": [
+    {
+      "nome": "tipreg",
+      "tipos": [
+        "int64"
+      ]
+    },
+    {
+      "nome": "data",
+      "tipos": [
+        "date32[day]"
+      ]
+    },
+    {
+      "nome": "bdi_id",
+      "tipos": [
+        "large_string"
+      ]
+    },
+    {
+      "nome": "simbolo",
+      "tipos": [
+        "large_string"
+      ]
+    },
+    {
+      "nome": "tipo_mercado_id",
+      "tipos": [
+        "int64"
+      ]
+    },
+    {
+      "nome": "nome_resumido",
+      "tipos": [
+        "large_string"
+      ]
+    },
+    {
+      "nome": "especificacao_id",
+      "tipos": [
+        "large_string"
+      ]
+    },
+    {
+      "nome": "prazo",
+      "tipos": [
+        "large_string"
+      ]
+    },
+    {
+      "nome": "simbolo_moeda",
+      "tipos": [
+        "large_string"
+      ]
+    },
+    {
+      "nome": "preco_abertura",
+      "tipos": [
+        "decimal128(13, 2)"
+      ]
+    },
+    {
+      "nome": "preco_maximo",
+      "tipos": [
+        "decimal128(13, 2)"
+      ]
+    },
+    {
+      "nome": "preco_minimo",
+      "tipos": [
+        "decimal128(13, 2)"
+      ]
+    },
+    {
+      "nome": "preco_medio",
+      "tipos": [
+        "decimal128(13, 2)"
+      ]
+    },
+    {
+      "nome": "preco_ultimo_negocio",
+      "tipos": [
+        "decimal128(13, 2)"
+      ]
+    },
+    {
+      "nome": "preco_melhor_oferta_compra",
+      "tipos": [
+        "decimal128(13, 2)"
+      ]
+    },
+    {
+      "nome": "preco_melhor_oferta_venda",
+      "tipos": [
+        "decimal128(13, 2)"
+      ]
+    },
+    {
+      "nome": "quantidade_negocios",
+      "tipos": [
+        "int64"
+      ]
+    },
+    {
+      "nome": "quantidade_titulos_negociados",
+      "tipos": [
+        "int64"
+      ]
+    },
+    {
+      "nome": "volume_negociado",
+      "tipos": [
+        "decimal128(18, 2)"
+      ]
+    },
+    {
+      "nome": "preco_exercicio",
+      "tipos": [
+        "decimal128(13, 2)"
+      ]
+    },
+    {
+      "nome": "indice_correcao_id",
+      "tipos": [
+        "int64"
+      ]
+    },
+    {
+      "nome": "data_vencimento",
+      "tipos": [
+        "date32[day]"
+      ]
+    },
+    {
+      "nome": "fator_cotacao",
+      "tipos": [
+        "int64"
+      ]
+    },
+    {
+      "nome": "preco_exercicio_pontos",
+      "tipos": [
+        "decimal128(13, 6)"
+      ]
+    },
+    {
+      "nome": "codisi",
+      "tipos": [
+        "large_string"
+      ]
+    },
+    {
+      "nome": "dismes",
+      "tipos": [
+        "int64"
+      ]
+    }
+  ],
+  "arquivos": 3
+}
