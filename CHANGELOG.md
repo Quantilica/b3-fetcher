@@ -9,6 +9,10 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ### Adicionado
 - Documentação dos dados em `docs/`, conforme a norma de documentação dos dados: página, dicionário de todas as variáveis e esquema de referência para cada um dos três datasets (`cotacaohistorica`, `derivativos_agro` e `indices_carteiras`). Um teste a verifica.
+- O fetcher declara os fatos da fonte (`FetcherInfo`: id canônico, apelidos, órgão, licença, página e cadência) para o registro de fetchers da Quantilica.
+
+### Alterado
+- Requer `quantilica-core>=0.19.0` (e `quantilica-cli>=0.17.0` como host).
 
 ## [0.4.1] - 2026-11-05
 

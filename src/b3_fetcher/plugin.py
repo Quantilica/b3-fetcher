@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from quantilica.cli.sdk import CheckPlanItem, FetcherApp
+from quantilica.core.registry import FetcherInfo
 from quantilica.core.sync import FreshnessPolicy
 
 from .catalog import ALL_GROUP_ALIASES, ALL_GROUPS, list_datasets
@@ -133,6 +134,18 @@ fetcher = B3FetcherApp(
     default_output=_DEFAULT_OUTPUT,
     name="b3-fetcher",
     help="Cotações Históricas (COTAHIST), derivativos agro e índices da B3.",
+    info=FetcherInfo(
+        id="b3",
+        nome="B3 - Cotações Históricas e Índices",
+        orgao="B3 S.A. - Brasil, Bolsa, Balcão (B3)",
+        homepage=(
+            "https://www.b3.com.br/pt_br/market-data-e-indices/"
+            "servicos-de-dados/market-data/historico/mercado-a-vista/"
+            "cotacoes-historicas/"
+        ),
+        cadencia="daily",
+        dominio="financas",
+    ),
     groups_dict=ALL_GROUPS,
     aliases_dict=ALL_GROUP_ALIASES,
     list_datasets=list_datasets,
