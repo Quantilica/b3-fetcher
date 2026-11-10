@@ -145,6 +145,11 @@ fetcher = B3FetcherApp(
         ),
         cadencia="daily",
         dominio="financas",
+        redistribuicao="restrita",
+        restricao_nota=(
+            "Termos de uso da B3 vedam coleta automatizada; sem licença "
+            "aberta. Uso interno."
+        ),
     ),
     groups_dict=ALL_GROUPS,
     aliases_dict=ALL_GROUP_ALIASES,
