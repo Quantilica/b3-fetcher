@@ -18,6 +18,7 @@ from typing import Any
 try:
     import polars as pl
     from quantilica.analytics.lake import LakeWriter
+    from quantilica.analytics.reader import read_csv_resilient
     from quantilica.core.lake import DatasetDescriptor, partition_types_for
 except ImportError as exc:
     raise ImportError(
@@ -206,9 +207,7 @@ def read_derivativos_agro(path: Path) -> dict[str, pl.DataFrame]:
         first = fh.readline().decode("utf-8", errors="replace")
     if first.lower().startswith("status do arquivo"):
         skip = 1  # "Status do Arquivo: Final" antes do cabeçalho
-    df = pl.read_csv(
-        path, separator=";", infer_schema=False, skip_rows=skip, encoding="utf8"
-    )
+    df = read_csv_resilient(path, separator=";", infer_schema=False, skip_rows=skip)
     missing = {"RptDt", "TckrSymb", "Asst", "SgmtNm"} - set(df.columns)
     if missing:
         raise ValueError(f"cabeçalho inesperado, faltam {sorted(missing)}")

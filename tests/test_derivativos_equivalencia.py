@@ -58,6 +58,15 @@ def test_derivativos_output_matches_golden(tmp_path: Path) -> None:
     assert snapshot(tmp_path) == json.loads(GOLDEN.read_text(encoding="utf-8"))
 
 
+def test_cp1252_file_is_read_instead_of_failing(tmp_path: Path) -> None:
+    path = tmp_path / "cp1252.csv"
+    path.write_bytes(_AGRO.replace("BGIF27", "BGIÇ27").encode("cp1252"))
+
+    frames = read_derivativos_agro(path)
+
+    assert frames["BGI"]["ticker"].to_list() == ["BGIÇ27"]
+
+
 if __name__ == "__main__":  # pragma: no cover - gera o golden com a leitura atual
     import sys
     import tempfile
