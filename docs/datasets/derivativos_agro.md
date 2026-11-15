@@ -131,7 +131,12 @@ d = pl.scan_parquet("lake/b3/derivativos_agro/**/*.parquet", hive_partitioning=T
 ultimo = d.select(pl.col("data_referencia").max()).collect().item()
 bgi = (
     d.filter((pl.col("data_referencia") == ultimo) & (pl.col("ativo_objeto") == "BGI"))
-    .select("ticker", "codigo_vencimento", "contratos_em_aberto", "variacao_contratos_em_aberto")
+    .select(
+        "ticker",
+        "codigo_vencimento",
+        "contratos_em_aberto",
+        "variacao_contratos_em_aberto",
+    )
     .sort("contratos_em_aberto", descending=True)
     .collect()
 )
