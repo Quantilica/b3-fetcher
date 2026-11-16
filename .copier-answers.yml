@@ -1,0 +1,18 @@
+_commit: v0.2.1
+_src_path: /home/dk/code/Quantilica/fetcher-template
+author_email: daniel@dkko.me
+author_name: Komesu, D.K.
+cadencia: daily
+description: Coletor das Cotações Históricas (COTAHIST) da B3
+domain: mercado-capitais
+dominio: financas
+has_lake: true
+homepage: https://www.b3.com.br/pt_br/market-data-e-indices/servicos-de-dados/market-data/historico/mercado-a-vista/cotacoes-historicas/
+licenca: Sem licença declarada; dados públicos pela Lei 12.527/2011 (LAI) e Decreto
+    8.777/2016
+orgao: B3 S.A. - Brasil, Bolsa, Balcão (B3)
+package_name: b3-fetcher
+package_slug: b3_fetcher
+protocol: http
+source_id: b3
+source_name: B3 - Cotações Históricas e Índices

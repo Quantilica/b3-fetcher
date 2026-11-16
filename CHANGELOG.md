@@ -10,6 +10,7 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 ### Alterado
 - A leitura do `DerivativesOpenPosition` (`read_derivativos_agro`) usa `quantilica.analytics.reader.read_csv_resilient` em vez de `pl.read_csv`. A saída não muda (teste contra um golden da leitura anterior); um arquivo em cp1252/latin-1 passa a ser lido, com aviso no log, em vez de falhar.
 - Requer `quantilica-analytics>=0.10.0` (antes `>=0.5.0`): é a versão do `read_csv_resilient` sem recuo silencioso de encoding.
+- CI e infraestrutura alinhados ao template (fetcher-template v0.2.1).
 
 ### Adicionado
 - Testes: identidade do registro conferida.
