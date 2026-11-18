@@ -9,7 +9,6 @@ and stored in Parquet format.
 from __future__ import annotations
 
 import datetime as dt
-import glob
 import json
 import re
 from dataclasses import dataclass, field
@@ -18,17 +17,11 @@ from typing import Any
 
 try:
     import polars as pl
-    from quantilica.analytics.lake import (
-        META_FILE_KEY,
-        LakeWriter,
-        origin_matches,
-        sha256_file,
-    )
+    from quantilica.analytics.lake import LakeWriter, output_id
     from quantilica.analytics.reader import read_csv_resilient
     from quantilica.core.lake import (
         DatasetDescriptor,
         file_key,
-        partition_dir,
         partition_types_for,
     )
 except ImportError as exc:
@@ -329,36 +322,18 @@ def _derivativos_em_dia(
     """Se todos os contratos do arquivo de derivativos já estão em dia no lake.
 
     O contrato (``contrato=``, o último nível da partição) só se conhece lendo
-    as linhas do arquivo. Em vez de ler o bruto (montagem de rede lenta), lista
-    no lake as pastas ``ano/mes/dia/contrato=*`` do dia e confere, com
-    ``origin_matches`` (sha256 do sidecar, versão do layout, partes completas),
-    cada uma que tem um Parquet com a chave deste arquivo. ``False`` quando não
-    há nenhum ou algum está desatualizado, e com ``force``: o arquivo é lido
-    como antes. Um ``LakeWriter.origin_recorded`` dispensaria esta listagem.
+    as linhas do arquivo. A conversão declara ao lake, antes da primeira gravação,
+    todas as saídas do arquivo (um contrato cada, ``origin_outputs``); aqui,
+    ``LakeWriter.origin_complete`` confirma, só pelos rodapés e pelo sidecar, que
+    todas existem com o sha256 atual (e a partição do dia é a do nome). Um arquivo
+    gravado sem a declaração, ou cuja conversão parou no meio, não está em dia:
+    é lido como antes. Também ``False`` com ``force``.
     """
-    if writer.force:
+    if writer.force or not writer.origin_complete(path):
         return False
-    dia = partition_dir(writer.dataset_dir, partitions)
-    if not dia.is_dir():
-        return False
-    chave = file_key(path)
-    pastas: set[Path] = set()
-    for parquet in dia.glob(f"contrato=*/{glob.escape(chave)}*.parquet"):
-        try:
-            meta = pl.read_parquet_metadata(parquet)
-        except (OSError, pl.exceptions.PolarsError):
-            return False
-        if meta.get(META_FILE_KEY) == chave:
-            pastas.add(parquet.parent)
-    if not pastas:
-        return False
-    digest = sha256_file(path)
-    return all(
-        origin_matches(
-            pasta, chave, digest, layout_version=writer.descriptor.layout_version
-        )
-        for pasta in pastas
-    )
+    saidas = writer.origin_outputs(path)
+    prefixo = output_id(partitions, "")
+    return bool(saidas) and all(o.startswith(prefixo) for o in saidas)
 
 
 class LakeConverter:
@@ -482,16 +457,26 @@ class LakeConverter:
                 if not frames:
                     result.errors.append(f"{path.name}: sem linhas do segmento agro")
                     continue
-                statuses = []
-                for contrato, df in frames.items():
+                # Todas as saídas do arquivo (um contrato cada), conhecidas antes
+                # da primeira gravação e iguais a cada execução para os mesmos
+                # bytes: o lake as registra e só dá o arquivo por completo (pulo)
+                # quando todas existem.
+                destinos: dict[str | None, dict[str, Any]] = {}
+                for contrato in frames:
                     parts = dict(partitions)
                     if contrato is not None:
                         parts["contrato"] = contrato
+                    destinos[contrato] = parts
+                saidas = sorted(output_id(p, file_key(path)) for p in destinos.values())
+                statuses = []
+                for contrato, df in frames.items():
+                    parts = destinos[contrato]
                     written = writer.write_polars(
                         _without_partitions(_cast_b3_codes(df), parts),
                         path,
                         partitions=parts,
                         converter=converter_tag,
+                        origin_outputs=saidas if ds_id == "derivativos_agro" else None,
                     )
                     statuses.append(written.status)
             except Exception as exc:  # noqa: BLE001 - erro contado por arquivo
