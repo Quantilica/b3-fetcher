@@ -9,6 +9,7 @@ and stored in Parquet format.
 from __future__ import annotations
 
 import datetime as dt
+import glob
 import json
 import re
 from dataclasses import dataclass, field
@@ -17,9 +18,19 @@ from typing import Any
 
 try:
     import polars as pl
-    from quantilica.analytics.lake import LakeWriter
+    from quantilica.analytics.lake import (
+        META_FILE_KEY,
+        LakeWriter,
+        origin_matches,
+        sha256_file,
+    )
     from quantilica.analytics.reader import read_csv_resilient
-    from quantilica.core.lake import DatasetDescriptor, partition_types_for
+    from quantilica.core.lake import (
+        DatasetDescriptor,
+        file_key,
+        partition_dir,
+        partition_types_for,
+    )
 except ImportError as exc:
     raise ImportError(
         "b3_fetcher.lake requer o extra 'analysis': "
@@ -312,6 +323,44 @@ def _without_partitions(df: pl.DataFrame, partitions: dict[str, Any]) -> pl.Data
     return df.drop([c for c in df.columns if c.lower() in keys])
 
 
+def _derivativos_em_dia(
+    writer: LakeWriter, path: Path, partitions: dict[str, str]
+) -> bool:
+    """Se todos os contratos do arquivo de derivativos já estão em dia no lake.
+
+    O contrato (``contrato=``, o último nível da partição) só se conhece lendo
+    as linhas do arquivo. Em vez de ler o bruto (montagem de rede lenta), lista
+    no lake as pastas ``ano/mes/dia/contrato=*`` do dia e confere, com
+    ``origin_matches`` (sha256 do sidecar, versão do layout, partes completas),
+    cada uma que tem um Parquet com a chave deste arquivo. ``False`` quando não
+    há nenhum ou algum está desatualizado, e com ``force``: o arquivo é lido
+    como antes. Um ``LakeWriter.origin_recorded`` dispensaria esta listagem.
+    """
+    if writer.force:
+        return False
+    dia = partition_dir(writer.dataset_dir, partitions)
+    if not dia.is_dir():
+        return False
+    chave = file_key(path)
+    pastas: set[Path] = set()
+    for parquet in dia.glob(f"contrato=*/{glob.escape(chave)}*.parquet"):
+        try:
+            meta = pl.read_parquet_metadata(parquet)
+        except (OSError, pl.exceptions.PolarsError):
+            return False
+        if meta.get(META_FILE_KEY) == chave:
+            pastas.add(parquet.parent)
+    if not pastas:
+        return False
+    digest = sha256_file(path)
+    return all(
+        origin_matches(
+            pasta, chave, digest, layout_version=writer.descriptor.layout_version
+        )
+        for pasta in pastas
+    )
+
+
 class LakeConverter:
     """Converter registered under the ``quantilica.lake`` entry point."""
 
@@ -415,6 +464,15 @@ class LakeConverter:
             converter_tag = f"b3-fetcher {__version__}"
 
             try:
+                # Em dia no lake: pula antes de ler o bruto (montagem de rede
+                # lenta); a decisao usa so o sidecar e rodapes de Parquet.
+                if ds_id == "derivativos_agro":
+                    em_dia = _derivativos_em_dia(writer, path, partitions)
+                else:
+                    em_dia = writer.is_current(path, partitions=partitions)
+                if em_dia:
+                    result.skipped += 1
+                    continue
                 if ds_id == DATASET_ID:
                     frames = {None: read_records(path)}
                 elif ds_id == "derivativos_agro":

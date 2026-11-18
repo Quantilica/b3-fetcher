@@ -7,6 +7,9 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ## [Não lançado]
 
+### Corrigido
+- `lake`: o build sem mudança não lê mais o bruto. Antes de ler o COTAHIST, o CSV de derivativos ou o JSON de índice, confere no rodapé do Parquet se o arquivo já está em dia e, estando, só conta `skipped`. Nos derivativos, em que o contrato só sai das linhas, as pastas `contrato=` do dia são listadas no lake. Mesma contagem de `converted`/`skipped`/`errors`; `force` e bruto novo seguem convertendo.
+
 ### Alterado
 - A leitura do `DerivativesOpenPosition` (`read_derivativos_agro`) usa `quantilica.analytics.reader.read_csv_resilient` em vez de `pl.read_csv`. A saída não muda (teste contra um golden da leitura anterior); um arquivo em cp1252/latin-1 passa a ser lido, com aviso no log, em vez de falhar.
 - Requer `quantilica-analytics>=0.10.0` (antes `>=0.5.0`): é a versão do `read_csv_resilient` sem recuo silencioso de encoding.
