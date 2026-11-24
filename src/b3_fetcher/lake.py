@@ -113,6 +113,9 @@ _PERIODO_ARQUIVO = re.compile(
     r"_(?P<data>(?:19|20)\d{2}(?:0[1-9]|1[0-2])(?:\d{2})?)(?=@|\.)"
 )
 _CARIMBO = re.compile(r"@(?P<dia>\d{8})")
+#: fim de semana e feriado entre o último pregão e o fim do mês (o anual de 2015
+#: tem carimbo 20151230; o mensal 201512, 20151231)
+_FOLGA_MENSAL = dt.timedelta(days=4)
 
 
 def anuais_vigentes(arquivos: Iterable[Path]) -> dict[str, str]:
@@ -142,8 +145,10 @@ def superado_pelo_anual(path: Path, anuais: Mapping[str, str]) -> bool:
     """Se o arquivo é um COTAHIST diário/mensal contido no anual do mesmo ano.
 
     Só vale com o anual daquele ano no bruto, de carimbo igual ou posterior ao dia
-    (ao último dia do mês, no mensal): sem ele, o diário ou mensal é a única cópia
-    dos dados e não é superado.
+    (no mensal, ao último dia do mês menos ``_FOLGA_MENSAL``: o último pregão pode
+    cair antes do fim do mês, e o carimbo do anual é o do último pregão que ele
+    traz). Sem o anual, o diário ou mensal é a única cópia dos dados e não é
+    superado.
     """
     if not any(p.lower() in SUPERADOS_PELO_ANUAL for p in path.parent.parts):
         return False
@@ -153,7 +158,9 @@ def superado_pelo_anual(path: Path, anuais: Mapping[str, str]) -> bool:
     data = m["data"]
     ano = data[:4]
     if len(data) == 6:
-        data += f"{calendar.monthrange(int(ano), int(data[4:6]))[1]:02d}"
+        fim = dt.date(int(ano), int(data[4:6]), 1)
+        fim = fim.replace(day=calendar.monthrange(fim.year, fim.month)[1])
+        data = (fim - _FOLGA_MENSAL).strftime("%Y%m%d")
     return ano in anuais and anuais[ano] >= data
 
 

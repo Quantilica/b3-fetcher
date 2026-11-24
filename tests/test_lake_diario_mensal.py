@@ -76,8 +76,11 @@ def test_superado_pelo_anual() -> None:
     assert not superado_pelo_anual(sem, anuais)
     # Anual de carimbo anterior ao dia: ainda não cobre.
     assert not superado_pelo_anual(diario, {"2022": "20220102"})
-    assert not superado_pelo_anual(mensal, {"2022": "20220330"})
+    assert not superado_pelo_anual(mensal, {"2022": "20220326"})
     assert superado_pelo_anual(mensal, {"2022": "20220331"})
+    # O último pregão do mês pode cair antes do fim dele (anual 2015: @20151230).
+    dezembro = Path("cotacaohistorica-mensal/2015/cotacaohistorica_201512@1.zip")
+    assert superado_pelo_anual(dezembro, {"2015": "20151230"})
 
 
 def test_anuais_vigentes_so_conta_o_anual(tmp_path: Path) -> None:
