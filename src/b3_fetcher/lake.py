@@ -98,6 +98,17 @@ def year_from_path(path: Path) -> str | None:
     return None
 
 
+#: Pastas do bruto com os COTAHIST diários e mensais de uma coleta antiga (2014 a
+#: abril de 2023). Cada registro deles está no arquivo anual do mesmo ano, que é o
+#: que o conversor lê: convertê-los também duplicaria as linhas do ``ano=``.
+SUPERADOS_PELO_ANUAL = ("cotacaohistorica-diario", "cotacaohistorica-mensal")
+
+
+def superado_pelo_anual(path: Path) -> bool:
+    """Se o arquivo cru é um COTAHIST diário ou mensal, contido no anual do ano."""
+    return any(part.lower() in SUPERADOS_PELO_ANUAL for part in path.parent.parts)
+
+
 class B3PathError(ValueError):
     """Arquivo cru cujo dataset ou partição não se deixa inferir do caminho."""
 
@@ -402,6 +413,8 @@ class LakeConverter:
         writers: dict[str, LakeWriter] = {}
 
         for path in files:
+            if superado_pelo_anual(path.relative_to(input_dir)):
+                continue  # contido no COTAHIST anual; ver SUPERADOS_PELO_ANUAL
             try:
                 ds_id = resolve_b3_dataset(path.relative_to(input_dir))
             except B3PathError as exc:
@@ -505,10 +518,16 @@ class LakeConverter:
             if not path.is_file() or path.name.endswith((".manifest.json", ".tmp")):
                 continue
             if path.suffix.lower() in {".zip", ".txt", ".csv", ".json"}:
+                relative = path.relative_to(input_dir)
+                if superado_pelo_anual(relative):
+                    planned.append(Planned(path, skip_reason="superado"))
+                    continue
                 try:
-                    ds_id = resolve_b3_dataset(path.relative_to(input_dir))
+                    ds_id = resolve_b3_dataset(relative)
                 except B3PathError:
-                    planned.append(Planned(path, skip_reason="dataset_desconhecido"))
+                    # Sem dataset e sem motivo para ignorar: o conversor espera um
+                    # Parquet (e não o gera), então a auditoria acusa o arquivo.
+                    planned.append(Planned(path))
                     continue
                 planned.append(Planned(path, dataset=ds_id))
             else:
