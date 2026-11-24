@@ -5,6 +5,13 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [0.5.2] - 2026-11-24
+
+### Corrigido
+
+- **Inventário do conversor não cai mais com os COTAHIST diários e mensais.** Os arquivos das pastas `cotacaohistorica-diario` e `cotacaohistorica-mensal` (coleta antiga, 2014 a abril de 2023) recebiam o motivo `dataset_desconhecido`, que não é um motivo válido de `Planned`: o `inventory()` lançava `ValueError` e a auditoria do lake, sem inventário, cobrava Parquet de cada um (`sem_parquet`). Cada registro deles já está no COTAHIST anual do mesmo ano, que é o que vira Parquet (converter os dois duplicaria linhas no `ano=`). Agora o inventário os marca como `superado`, **só quando o anual daquele ano existe no bruto** com carimbo igual ou posterior ao dia (no mensal, ao fim do mês menos 4 dias: o último pregão pode cair antes do fim do mês); sem ele, o diário ou mensal é a única cópia dos dados e segue esperando Parquet. O `convert` ignora os superados sem contar erro. Um arquivo cujo dataset não se reconhece segue esperando Parquet (a auditoria o acusa).
+- **Resposta vazia da B3 em `indices_carteiras` vira Parquet vazio.** Quando o `GetPortfolioDay` responde 200 com `header` e `results` nulos (a B3 não tem carteira para a data), o conversor lançava `JSON sem header/results` e a tarefa do dataset inteiro falhava. Agora grava um Parquet vazio, com o esquema da carteira (`data_carteira`, `redutor` e `qtd_teorica_total` nulos), na partição que vem do nome do arquivo; a auditoria o cobre sem exceção. JSON sem a estrutura esperada continua sendo erro.
+
 ## [0.5.1] - 2026-11-19
 
 ### Adicionado
