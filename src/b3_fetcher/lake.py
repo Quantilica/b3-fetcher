@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import logging
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -34,6 +35,8 @@ except ImportError as exc:
 from b3_fetcher import __version__
 from b3_fetcher.constants import DATASET_ID, INDICES
 from b3_fetcher.reader import read_records
+
+logger = logging.getLogger(__name__)
 
 SOURCE_ID = "b3"
 PARTITION_KEYS = ["ano"]
@@ -246,14 +249,21 @@ def read_derivativos_agro(path: Path) -> dict[str, pl.DataFrame]:
     }
 
 
+class CarteiraVazia(ValueError):
+    """O endpoint respondeu 200 sem carteira (``header`` e ``results`` nulos)."""
+
+
 def read_indice(path: Path) -> pl.DataFrame:
     """Lê a carteira de um índice (JSON do ``GetPortfolioDay``).
 
     Raises:
+        CarteiraVazia: Se ``header`` e ``results`` são nulos (resposta vazia da B3).
         ValueError: Se o JSON não tiver ``header``/``results``.
     """
     payload = json.loads(Path(path).read_text(encoding="utf-8"))
     header, results = payload.get("header"), payload.get("results")
+    if "header" in payload and "results" in payload and header is None is results:
+        raise CarteiraVazia("resposta sem carteira (header e results nulos)")
     if not header or not results:
         raise ValueError("JSON sem header/results")
     data_carteira = dt.datetime.strptime(
@@ -492,6 +502,12 @@ class LakeConverter:
                         origin_outputs=saidas if ds_id == "derivativos_agro" else None,
                     )
                     statuses.append(written.status)
+            except CarteiraVazia as exc:
+                # Resposta vazia da B3 (sem dado para a data): não há o que
+                # converter, e o arquivo não é erro do conversor.
+                logger.warning("%s: %s; sem Parquet", path.name, exc)
+                result.skipped += 1
+                continue
             except Exception as exc:  # noqa: BLE001 - erro contado por arquivo
                 message = str(exc).strip()
                 first_line = message.splitlines()[0] if message else repr(exc)

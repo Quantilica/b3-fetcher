@@ -105,3 +105,29 @@ def test_auditoria_nao_cobra_parquet_do_diario_e_do_mensal(tmp_path: Path) -> No
     assert not [n for n in report.notes if "inventory()" in n]
     assert report.by_category().get("sem_parquet", 0) == 0
     assert report.ignored.get("superado") == 2
+
+
+def test_carteira_vazia_da_b3_nao_e_erro_do_conversor(tmp_path: Path) -> None:
+    """``header`` e ``results`` nulos: a B3 respondeu 200 sem carteira para a data."""
+    import shutil
+
+    raw = tmp_path / "raw" / "indices_carteiras" / "2026"
+    raw.mkdir(parents=True)
+    fixtures = Path(__file__).parent / "fixtures"
+    shutil.copy(
+        fixtures / "indices_carteiras_IBOV_response.json",
+        raw / "indices_carteiras-IBOV-2026-11-03.json",
+    )
+    (raw / "indices_carteiras-IFIL-2026-11-23.json").write_text(
+        '{"page":{"pageNumber":-1,"pageSize":-1,"totalRecords":null,'
+        '"totalPages":null},"header":null,"results":null}'
+    )
+    lake = tmp_path / "lake"
+    res = converter.convert(tmp_path / "raw", lake, datasets=["indices_carteiras"])
+    assert res.errors == []
+    assert (res.converted, res.skipped) == (1, 1)
+
+    # JSON sem a estrutura esperada segue sendo erro.
+    (raw / "indices_carteiras-IFIL-2026-11-24.json").write_text('{"results": []}')
+    res = converter.convert(tmp_path / "raw", lake, datasets=["indices_carteiras"])
+    assert len(res.errors) == 1 and "sem header/results" in res.errors[0]
