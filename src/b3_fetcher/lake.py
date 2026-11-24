@@ -8,10 +8,12 @@ and stored in Parquet format.
 
 from __future__ import annotations
 
+import calendar
 import datetime as dt
 import json
 import logging
 import re
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -106,10 +108,53 @@ def year_from_path(path: Path) -> str | None:
 #: que o conversor lê: convertê-los também duplicaria as linhas do ``ano=``.
 SUPERADOS_PELO_ANUAL = ("cotacaohistorica-diario", "cotacaohistorica-mensal")
 
+#: ``cotacaohistorica_20220103`` (diário) ou ``cotacaohistorica_202201`` (mensal).
+_PERIODO_ARQUIVO = re.compile(
+    r"_(?P<data>(?:19|20)\d{2}(?:0[1-9]|1[0-2])(?:\d{2})?)(?=@|\.)"
+)
+_CARIMBO = re.compile(r"@(?P<dia>\d{8})")
 
-def superado_pelo_anual(path: Path) -> bool:
-    """Se o arquivo cru é um COTAHIST diário ou mensal, contido no anual do ano."""
-    return any(part.lower() in SUPERADOS_PELO_ANUAL for part in path.parent.parts)
+
+def anuais_vigentes(arquivos: Iterable[Path]) -> dict[str, str]:
+    """Ano -> carimbo (AAAAMMDD) da versão mais nova do COTAHIST anual no bruto.
+
+    Só entram os anuais (``cotacaohistorica``); sem carimbo no nome vale o fim dos
+    tempos (``99999999``: o anual existe e não se sabe até quando cobre).
+    """
+    anuais: dict[str, str] = {}
+    for path in arquivos:
+        if any(p.lower() in SUPERADOS_PELO_ANUAL for p in path.parent.parts):
+            continue
+        try:
+            if resolve_b3_dataset(path) != DATASET_ID:
+                continue
+        except B3PathError:
+            continue
+        ano = year_from_path(path)
+        if not ano:
+            continue
+        m = _CARIMBO.search(path.name)
+        anuais[ano] = max(anuais.get(ano, ""), m["dia"] if m else "99999999")
+    return anuais
+
+
+def superado_pelo_anual(path: Path, anuais: Mapping[str, str]) -> bool:
+    """Se o arquivo é um COTAHIST diário/mensal contido no anual do mesmo ano.
+
+    Só vale com o anual daquele ano no bruto, de carimbo igual ou posterior ao dia
+    (ao último dia do mês, no mensal): sem ele, o diário ou mensal é a única cópia
+    dos dados e não é superado.
+    """
+    if not any(p.lower() in SUPERADOS_PELO_ANUAL for p in path.parent.parts):
+        return False
+    m = _PERIODO_ARQUIVO.search(path.name)
+    if not m:
+        return False
+    data = m["data"]
+    ano = data[:4]
+    if len(data) == 6:
+        data += f"{calendar.monthrange(int(ano), int(data[4:6]))[1]:02d}"
+    return ano in anuais and anuais[ano] >= data
 
 
 class B3PathError(ValueError):
@@ -249,26 +294,30 @@ def read_derivativos_agro(path: Path) -> dict[str, pl.DataFrame]:
     }
 
 
-class CarteiraVazia(ValueError):
-    """O endpoint respondeu 200 sem carteira (``header`` e ``results`` nulos)."""
-
-
 def read_indice(path: Path) -> pl.DataFrame:
     """Lê a carteira de um índice (JSON do ``GetPortfolioDay``).
 
+    Resposta sem carteira (``header`` e ``results`` nulos: a B3 não tem carteira
+    para a data) devolve o quadro vazio, com o mesmo esquema da carteira e a
+    ``data_carteira``, o ``redutor`` e a ``qtd_teorica_total`` nulos.
+
     Raises:
-        CarteiraVazia: Se ``header`` e ``results`` são nulos (resposta vazia da B3).
-        ValueError: Se o JSON não tiver ``header``/``results``.
+        ValueError: Se o JSON tiver só um de ``header``/``results``, ou nenhum dos
+            dois como chaves da resposta.
     """
     payload = json.loads(Path(path).read_text(encoding="utf-8"))
     header, results = payload.get("header"), payload.get("results")
-    if "header" in payload and "results" in payload and header is None is results:
-        raise CarteiraVazia("resposta sem carteira (header e results nulos)")
-    if not header or not results:
+    vazia = "header" in payload and "results" in payload and header is None is results
+    if vazia:
+        header, results = {}, []
+    elif not header or not results:
         raise ValueError("JSON sem header/results")
-    data_carteira = dt.datetime.strptime(
-        header["date"], "%d/%m/%y" if len(header["date"]) == 8 else "%d/%m/%Y"
-    ).date()
+    if vazia:
+        data_carteira = None
+    else:
+        data_carteira = dt.datetime.strptime(
+            header["date"], "%d/%m/%y" if len(header["date"]) == 8 else "%d/%m/%Y"
+        ).date()
     df = pl.DataFrame(
         results,
         schema={
@@ -298,13 +347,13 @@ def read_indice(path: Path) -> pl.DataFrame:
         pl.col("qtd_teorica")
         .str.replace_all(".", "", literal=True)
         .cast(pl.Int64, strict=True),
-        pl.lit(data_carteira).alias("data_carteira"),
-        pl.lit(header.get("reductor"))
+        pl.lit(data_carteira, dtype=pl.Date).alias("data_carteira"),
+        pl.lit(header.get("reductor"), dtype=pl.String)
         .str.replace_all(".", "", literal=True)
         .str.replace(",", ".", literal=True)
         .cast(pl.Decimal(precision=28, scale=8), strict=True)
         .alias("redutor"),
-        pl.lit(header.get("theoricalQty"))
+        pl.lit(header.get("theoricalQty"), dtype=pl.String)
         .str.replace_all(".", "", literal=True)
         .cast(pl.Int64, strict=True)
         .alias("qtd_teorica_total"),
@@ -419,11 +468,12 @@ class LakeConverter:
             and p.suffix.lower() in {".zip", ".txt", ".csv", ".json"}
             and not p.name.endswith(".manifest.json")
         )
+        anuais = anuais_vigentes(p.relative_to(input_dir) for p in files)
 
         writers: dict[str, LakeWriter] = {}
 
         for path in files:
-            if superado_pelo_anual(path.relative_to(input_dir)):
+            if superado_pelo_anual(path.relative_to(input_dir), anuais):
                 continue  # contido no COTAHIST anual; ver SUPERADOS_PELO_ANUAL
             try:
                 ds_id = resolve_b3_dataset(path.relative_to(input_dir))
@@ -502,12 +552,6 @@ class LakeConverter:
                         origin_outputs=saidas if ds_id == "derivativos_agro" else None,
                     )
                     statuses.append(written.status)
-            except CarteiraVazia as exc:
-                # Resposta vazia da B3 (sem dado para a data): não há o que
-                # converter, e o arquivo não é erro do conversor.
-                logger.warning("%s: %s; sem Parquet", path.name, exc)
-                result.skipped += 1
-                continue
             except Exception as exc:  # noqa: BLE001 - erro contado por arquivo
                 message = str(exc).strip()
                 first_line = message.splitlines()[0] if message else repr(exc)
@@ -530,12 +574,20 @@ class LakeConverter:
             return []
 
         planned: list[Planned] = []
-        for path in sorted(input_dir.rglob("*")):
+        todos = sorted(input_dir.rglob("*"))
+        anuais = anuais_vigentes(
+            p.relative_to(input_dir)
+            for p in todos
+            if p.is_file()
+            and p.suffix.lower() in {".zip", ".txt", ".csv", ".json"}
+            and not p.name.endswith(".manifest.json")
+        )
+        for path in todos:
             if not path.is_file() or path.name.endswith((".manifest.json", ".tmp")):
                 continue
             if path.suffix.lower() in {".zip", ".txt", ".csv", ".json"}:
                 relative = path.relative_to(input_dir)
-                if superado_pelo_anual(relative):
+                if superado_pelo_anual(relative, anuais):
                     planned.append(Planned(path, skip_reason="superado"))
                     continue
                 try:
