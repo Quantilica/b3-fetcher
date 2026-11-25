@@ -212,3 +212,26 @@ def test_carteira_vazia_da_b3_vira_parquet_vazio_com_o_esquema(tmp_path: Path) -
     (raw / "indices_carteiras-IFIL-2026-11-24.json").write_text('{"results": []}')
     res = converter.convert(raiz, lake, datasets=["indices_carteiras"])
     assert len(res.errors) == 1 and "sem header/results" in res.errors[0]
+
+
+def test_inventario_anual_sem_carimbo_perde_para_o_carimbado(tmp_path: Path) -> None:
+    """O anual sem carimbo é o mais antigo (``select_current``): o carimbo que
+    decide se o diário está contido é o do carimbado, não ``99999999``."""
+    raw = tmp_path / "raw"
+    for rel in (
+        "cotacaohistorica/2022/cotacaohistorica_2022.zip",
+        "cotacaohistorica/2022/cotacaohistorica_2022@20220110.zip",
+        "cotacaohistorica-diario/2022/cotacaohistorica_20220103@20220104.zip",
+        "cotacaohistorica-diario/2022/cotacaohistorica_20220201@20220202.zip",
+    ):
+        f = raw / rel
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_bytes(b"x")
+    planned = {
+        p.path.name: (p.dataset, p.skip_reason) for p in converter.inventory(raw)
+    }
+    assert planned["cotacaohistorica_2022.zip"] == (None, "superado")
+    assert planned["cotacaohistorica_2022@20220110.zip"] == (DATASET_ID, None)
+    assert planned["cotacaohistorica_20220103@20220104.zip"] == (None, "superado")
+    # O anual vigente só cobre até 10/01: o diário de fevereiro não está contido.
+    assert planned["cotacaohistorica_20220201@20220202.zip"] == (None, None)

@@ -123,7 +123,10 @@ def anuais_vigentes(arquivos: Iterable[Path]) -> dict[str, str]:
     """Ano -> carimbo (AAAAMMDD) da versão mais nova do COTAHIST anual no bruto.
 
     Só entram os anuais (``cotacaohistorica``); sem carimbo no nome vale o fim dos
-    tempos (``99999999``: o anual existe e não se sabe até quando cobre).
+    tempos (``99999999``: o anual existe e não se sabe até quando cobre). Quem
+    chama passa só as versões vigentes (``versoes_vigentes``): ``select_current``
+    trata o sem carimbo como o mais antigo, e o ``convert`` e o ``inventory`` têm
+    de concordar com a versão que de fato vira Parquet.
     """
     anuais: dict[str, str] = {}
     for path in arquivos:
@@ -498,7 +501,9 @@ class LakeConverter:
 
         files = arquivos_do_bruto(input_dir)
         vigentes = versoes_vigentes(files, input_dir)
-        anuais = anuais_vigentes(p.relative_to(input_dir) for p in files)
+        anuais = anuais_vigentes(
+            p.relative_to(input_dir) for p in files if p in vigentes
+        )
 
         writers: dict[str, LakeWriter] = {}
 
@@ -612,7 +617,9 @@ class LakeConverter:
         todos = sorted(input_dir.rglob("*"))
         tabulares = arquivos_do_bruto(input_dir)
         vigentes = versoes_vigentes(tabulares, input_dir)
-        anuais = anuais_vigentes(p.relative_to(input_dir) for p in tabulares)
+        anuais = anuais_vigentes(
+            p.relative_to(input_dir) for p in tabulares if p in vigentes
+        )
         for path in todos:
             if not path.is_file() or path.name.endswith((".manifest.json", ".tmp")):
                 continue
