@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [Não lançado]
+
+### Corrigido
+
+- **O conversor lê só a versão vigente de cada bruto.** O bruto guarda cada versão carimbada (`cotacaohistorica_2026@AAAAMMDD.zip`, 14 versões de ~90 MB no caso real) e todas viram o mesmo Parquet; o `convert` as lia todas, em ordem de nome, e o resultado só saía certo porque a mais nova era gravada por último, a cada rodada. Agora escolhe a vigente por `quantilica.core.lake.select_current` antes de converter: as anteriores não são lidas (contam em `skipped`), a segunda rodada não reconverte nada e uma versão nova converte só ela, substituindo o Parquet anterior sem duplicar linhas. O `inventory()` marca as versões anteriores como `superado`.
+
 ## [0.5.2] - 2026-11-24
 
 ### Corrigido

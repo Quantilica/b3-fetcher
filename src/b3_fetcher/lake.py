@@ -26,6 +26,7 @@ try:
         DatasetDescriptor,
         file_key,
         partition_types_for,
+        select_current,
     )
 except ImportError as exc:
     raise ImportError(
@@ -162,6 +163,33 @@ def superado_pelo_anual(path: Path, anuais: Mapping[str, str]) -> bool:
         fim = fim.replace(day=calendar.monthrange(fim.year, fim.month)[1])
         data = (fim - _FOLGA_MENSAL).strftime("%Y%m%d")
     return ano in anuais and anuais[ano] >= data
+
+
+#: Sufixos que o conversor lê (e que entram na escolha da versão vigente).
+_SUFIXOS_TABULARES = {".zip", ".txt", ".csv", ".json"}
+
+
+def arquivos_do_bruto(input_dir: Path) -> list[Path]:
+    """Arquivos do bruto que o conversor lê, em ordem de caminho."""
+    return sorted(
+        p
+        for p in Path(input_dir).rglob("*")
+        if p.is_file()
+        and p.suffix.lower() in _SUFIXOS_TABULARES
+        and not p.name.endswith(".manifest.json")
+    )
+
+
+def versoes_vigentes(arquivos: Iterable[Path], input_dir: Path) -> set[Path]:
+    """Os arquivos que são a versão vigente do seu bruto (``select_current``).
+
+    O bruto guarda cada versão carimbada (``x@20261101.zip``, ``x@20261102.zip``) e
+    todas viram o mesmo Parquet; só a mais nova vale. As anteriores não são
+    convertidas (nem relidas a cada rodada) e o inventário as marca ``superado``.
+    """
+    input_dir = Path(input_dir)
+    vigentes = select_current(Path(p).relative_to(input_dir) for p in arquivos)
+    return {input_dir / p for p in vigentes}
 
 
 class B3PathError(ValueError):
@@ -468,13 +496,8 @@ class LakeConverter:
                     result.errors.append(f"dataset desconhecido: {u}")
                 return result
 
-        files = sorted(
-            p
-            for p in input_dir.rglob("*")
-            if p.is_file()
-            and p.suffix.lower() in {".zip", ".txt", ".csv", ".json"}
-            and not p.name.endswith(".manifest.json")
-        )
+        files = arquivos_do_bruto(input_dir)
+        vigentes = versoes_vigentes(files, input_dir)
         anuais = anuais_vigentes(p.relative_to(input_dir) for p in files)
 
         writers: dict[str, LakeWriter] = {}
@@ -489,6 +512,11 @@ class LakeConverter:
                     result.errors.append(str(exc))
                 continue
             if requested_canonical and ds_id not in requested_canonical:
+                continue
+            if path not in vigentes:
+                # Versão anterior do mesmo bruto (``x@AAAAMMDD``): a vigente vira
+                # o Parquet; converter as duas faria uma sobrescrever a outra.
+                result.skipped += 1
                 continue
             try:
                 partitions = resolve_b3_partitions(ds_id, path)
@@ -582,19 +610,15 @@ class LakeConverter:
 
         planned: list[Planned] = []
         todos = sorted(input_dir.rglob("*"))
-        anuais = anuais_vigentes(
-            p.relative_to(input_dir)
-            for p in todos
-            if p.is_file()
-            and p.suffix.lower() in {".zip", ".txt", ".csv", ".json"}
-            and not p.name.endswith(".manifest.json")
-        )
+        tabulares = arquivos_do_bruto(input_dir)
+        vigentes = versoes_vigentes(tabulares, input_dir)
+        anuais = anuais_vigentes(p.relative_to(input_dir) for p in tabulares)
         for path in todos:
             if not path.is_file() or path.name.endswith((".manifest.json", ".tmp")):
                 continue
-            if path.suffix.lower() in {".zip", ".txt", ".csv", ".json"}:
+            if path.suffix.lower() in _SUFIXOS_TABULARES:
                 relative = path.relative_to(input_dir)
-                if superado_pelo_anual(relative, anuais):
+                if superado_pelo_anual(relative, anuais) or path not in vigentes:
                     planned.append(Planned(path, skip_reason="superado"))
                     continue
                 try:
