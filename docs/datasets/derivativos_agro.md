@@ -63,7 +63,7 @@ O arquivo `DerivativesOpenPosition` da B3 traz, depois de cada pregão, as posi�
 
 ## Origem e coleta
 
-- O serviço de arquivos da B3 entrega o arquivo em duas etapas: um pedido com o nome do arquivo (`DerivativesOpenPosition`) e a data devolve um token, e o download usa o token. Datas sem arquivo (fim de semana, feriado, data futura) respondem erro 400, que o fetcher ignora sem erro.
+- O serviço de arquivos da B3 entrega o arquivo em duas etapas: um pedido com o nome do arquivo (`DerivativesOpenPosition`) e a data devolve um token, e o download usa o token. Datas sem arquivo (fim de semana, feriado, data futura) respondem erro 400, que o fetcher ignora sem erro. O 400 é o mesmo para um nome de arquivo que a B3 mudou; por isso, quando o dataset fica 5 dias úteis seguidos sem arquivo, o `sync` acusa erro, com o dataset e a data de início.
 - Por padrão o fetcher lista os últimos 5 dias úteis; o prazo é ajustável.
 - No bruto, cada dia é `derivativos_agro-<AAAA-MM-DD>.csv`.
 - Conferido em 2026-11-09 pela listagem do bruto: cinco dias (2026-10-29, 2026-10-30, 2026-11-03, 2026-11-04 e 2026-11-05). Não há histórico anterior a 2026-10-29 no bruto conferido.

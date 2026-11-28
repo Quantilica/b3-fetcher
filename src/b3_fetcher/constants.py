@@ -51,3 +51,10 @@ INDICES = {
 # Janela de datas listadas por ``list``/``sync`` (dias úteis, hoje inclusive).
 DEFAULT_LOOKBACK_BUSINESS_DAYS = 5
 LOOKBACK_ENV = "B3_LOOKBACK_DAYS"
+
+# Dias úteis (seg-sex) seguidos sem arquivo, com a B3 respondendo ``400``, a partir
+# dos quais o dataset passa a contar como erro no ``sync``. O ``400`` é igual para
+# fim de semana, feriado, data futura e ``fileName`` desconhecido; se a B3
+# renomear o arquivo, só a ausência prolongada denuncia. Feriados nacionais
+# seguidos em dia útil não passam de 3, então 5 absorve o calendário.
+MAX_BUSINESS_DAYS_WITHOUT_FILE = 5

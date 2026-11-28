@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import datetime as dt
 import os
+import re
 from pathlib import Path
 from typing import Any
 
@@ -69,3 +70,26 @@ class DataRepository(BaseDataRepository):
         return self.dataset_path(
             group, str(entry["year"]), f"{label}.{entry.get('ext', 'csv')}"
         )
+
+    def daily_dates(self, group: str) -> set[dt.date]:
+        """Datas dos arquivos diários já gravados de ``group`` (sem rede).
+
+        Lê só os nomes ``<grupo>-<data>.<ext>`` em ``<grupo>/<ano>/``; manifestos
+        laterais e arquivos parciais ficam de fora.
+        """
+        base = self.dataset_path(group)
+        dates: set[dt.date] = set()
+        if not base.is_dir():
+            return dates
+        for path in base.glob("*/*"):
+            found = _DAILY_DATE.search(path.name)
+            if found is None or not path.is_file():
+                continue
+            try:
+                dates.add(dt.date.fromisoformat(found.group(1)))
+            except ValueError:
+                continue
+        return dates
+
+
+_DAILY_DATE = re.compile(r"(\d{4}-\d{2}-\d{2})\.[A-Za-z0-9]+$")

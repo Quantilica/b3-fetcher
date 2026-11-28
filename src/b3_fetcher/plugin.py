@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +13,7 @@ from quantilica.core.registry import FetcherInfo
 from quantilica.core.sync import FreshnessPolicy
 
 from .catalog import ALL_GROUP_ALIASES, ALL_GROUPS, list_datasets
+from .constants import MAX_BUSINESS_DAYS_WITHOUT_FILE
 from .source import (
     B3FileUnavailableError,
     B3ProtocolError,
@@ -39,16 +41,134 @@ def path_builder(
     return DataRepository(output_dir).path_for_entry(entry, last_modified=last_modified)
 
 
+def _next_business_day(day: dt.date) -> dt.date:
+    day += dt.timedelta(days=1)
+    while day.weekday() >= 5:
+        day += dt.timedelta(days=1)
+    return day
+
+
+def _previous_business_day(day: dt.date) -> dt.date:
+    day -= dt.timedelta(days=1)
+    while day.weekday() >= 5:
+        day -= dt.timedelta(days=1)
+    return day
+
+
+def streak_without_file(
+    unavailable: set[dt.date],
+    local: set[dt.date],
+    limit: int = MAX_BUSINESS_DAYS_WITHOUT_FILE,
+) -> tuple[dt.date, dt.date, int] | None:
+    """Detecta um dataset sem arquivo há ``limit`` dias úteis ou mais.
+
+    A B3 responde ``400`` para fim de semana, feriado, data futura e arquivo
+    desconhecido sem distinguir os casos; só a ausência prolongada (arquivo
+    renomeado ou removido) denuncia. Decide só com o que a rodada viu (datas que
+    responderam ``400``) e com os arquivos já gravados, sem rede.
+
+    Args:
+        unavailable: Datas que responderam ``400`` nesta rodada.
+        local: Datas dos arquivos já gravados do dataset.
+        limit: Quantos dias úteis seguidos sem arquivo contam como erro.
+
+    Returns:
+        ``(desde, ate, dias_uteis)`` quando a sequência sem arquivo que termina na
+        última data com ``400`` tem ``limit`` dias úteis ou mais; ``None`` caso
+        contrário (inclusive quando há arquivo igual ou posterior a essa data).
+        Com arquivo local anterior, a sequência começa no dia útil seguinte a ele;
+        sem nenhum, só conta os ``400`` seguidos vistos na rodada.
+    """
+    if not unavailable:
+        return None
+    last_bad = max(unavailable)
+    last_local = max(local, default=None)
+    if last_local is not None and last_local >= last_bad:
+        return None
+    if last_local is not None:
+        start = _next_business_day(last_local)
+    else:
+        start = last_bad
+        day = _previous_business_day(last_bad)
+        while day in unavailable:
+            start = day
+            day = _previous_business_day(day)
+    days = 0
+    day = start
+    while day <= last_bad:
+        if day.weekday() < 5:
+            days += 1
+        day += dt.timedelta(days=1)
+    if days < limit:
+        return None
+    return start, last_bad, days
+
+
 class B3FetcherApp(FetcherApp):
     """``FetcherApp`` que sabe resolver os protocolos diários da B3.
 
     - ``requestname`` (A4): troca a URL do ``requestname`` pelo download com token;
-      ``400`` (feriado, sem arquivo) é ignorado sem erro.
+      ``400`` (feriado, sem arquivo) é ignorado sem erro, a menos que o dataset
+      fique ``MAX_BUSINESS_DAYS_WITHOUT_FILE`` dias úteis seguidos sem arquivo
+      (então o ``sync`` o conta como erro: o arquivo pode ter sido renomeado).
     - ``portfolio``: carteira vigente do índice; o nome do arquivo usa a data do
       cabeçalho da resposta.
 
     Entradas sem ``protocol`` (COTAHIST) seguem o caminho padrão.
     """
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._unavailable_lock = threading.Lock()
+        self._unavailable: dict[str, set[dt.date]] = {}
+
+    def download_datasets(
+        self,
+        entries: list[dict[str, Any]],
+        output_dir: Path,
+        workers: int = 4,
+        *,
+        force: bool = False,
+    ) -> tuple[int, int, list[tuple[str, str]]]:
+        """Baixa as entradas e acusa o dataset que só recebe ``400`` há dias.
+
+        Um ``400`` isolado é feriado ou fim de semana e não é erro. Depois do
+        download (que pode ter gravado dias anteriores em paralelo), cada dataset
+        cujo último ``400`` fecha ``MAX_BUSINESS_DAYS_WITHOUT_FILE`` dias úteis
+        seguidos sem arquivo entra nos erros, com o dataset e a data de início.
+        """
+        with self._unavailable_lock:
+            self._unavailable = {}
+        if force:
+            downloaded, total, errors = super().download_datasets(
+                entries, output_dir, workers=workers, force=True
+            )
+        else:
+            downloaded, total, errors = super().download_datasets(
+                entries, output_dir, workers=workers
+            )
+        with self._unavailable_lock:
+            seen = {group: set(days) for group, days in self._unavailable.items()}
+        repo = DataRepository(output_dir)
+        errors = list(errors)
+        for group, days in sorted(seen.items()):
+            streak = streak_without_file(days, repo.daily_dates(group))
+            if streak is None:
+                continue
+            since, until, count = streak
+            message = (
+                f"B3 sem arquivo de {group} desde {since.isoformat()} "
+                f"({count} dias úteis seguidos, até {until.isoformat()}): "
+                "a B3 responde 400 também quando o fileName muda ou o arquivo "
+                "sai do ar"
+            )
+            logger.error("%s: %s", group, message)
+            errors.append((group, message))
+            stats = self.last_download_stats
+            if stats is not None:
+                stats.succeeded_count = max(0, stats.succeeded_count - 1)
+                stats.failed()
+        return downloaded, total, errors
 
     def download_entry(
         self,
@@ -76,10 +196,20 @@ class B3FetcherApp(FetcherApp):
                 url = resolve_download_url(self.client, entry["url"])
             except B3FileUnavailableError:
                 logger.info("%s: B3 sem arquivo (feriado/sem pregão)", entry["id"])
+                self._record_unavailable(group, entry)
                 return output
         else:
             url = entry["url"]
         return self._download_file(url, output, progress, force=force, dataset_id=group)
+
+    def _record_unavailable(self, group: str, entry: dict[str, Any]) -> None:
+        """Guarda a data que respondeu ``400`` para a conferência ao fim do sync."""
+        try:
+            day = dt.date.fromisoformat(str(entry["date"]))
+        except (KeyError, ValueError):
+            return
+        with self._unavailable_lock:
+            self._unavailable.setdefault(group, set()).add(day)
 
     @staticmethod
     def _portfolio_date_fields(payload: Any) -> dict[str, Any]:

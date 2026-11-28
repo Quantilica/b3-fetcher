@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [Não lançado]
+
+### Corrigido
+
+- **Dataset que só recebe 400 da B3 por vários dias úteis vira erro.** O `400` do endpoint de arquivos diários vale para fim de semana, feriado, data futura e nome de arquivo desconhecido; se a B3 renomeasse o arquivo, o dataset sumiria para sempre com saída 0. Ao fim do `sync`, o dataset cujo último `400` fecha 5 dias úteis seguidos sem arquivo (`MAX_BUSINESS_DAYS_WITHOUT_FILE`; fim de semana não conta, o 5 absorve feriados em dia útil) entra nos erros, com a mensagem `B3 sem arquivo de <dataset> desde <data>` (saída 3 se algo baixou, 1 se não), log em ERROR e o erro no `--summary-json`. A conta usa só os arquivos já gravados e os `400` da rodada, sem rede nem arquivo de estado; arquivos baixados na mesma rodada limpam a sequência.
+
 ## [0.5.3] - 2026-11-25
 
 ### Corrigido
