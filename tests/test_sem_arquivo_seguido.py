@@ -65,8 +65,8 @@ def test_sync_one_holiday_is_not_an_error(tmp_path: Path) -> None:
     # 5 úteis até sex 6/11; só a quinta 5 sem arquivo (feriado)
     app = make_app(FakeB3({"2026-11-02", "2026-11-03", "2026-11-04", "2026-11-06"}))
     downloaded, total, errors = _sync(app, tmp_path, D(2026, 11, 6))
-    # o 400 isolado conta como entrada concluída (sem arquivo), sem erro
-    assert (downloaded, total, errors) == (5, 5, [])
+    # o 400 isolado não é erro nem conta como baixado
+    assert (downloaded, total, errors) == (4, 5, [])
     assert len(list((tmp_path / "derivativos_agro").rglob("*.csv"))) == 4
 
 
@@ -76,7 +76,8 @@ def test_sync_all_400_for_five_business_days_is_an_error(
     app = make_app(FakeB3(set()))
     with caplog.at_level(logging.ERROR):
         downloaded, total, errors = _sync(app, tmp_path, D(2026, 11, 6))
-    assert total == 5
+    # só 400: nada baixou (o host sai com 1, não com 3) e o dataset é 1 falha
+    assert (downloaded, total) == (0, 5)
     assert len(errors) == 1
     group, message = errors[0]
     assert group == "derivativos_agro"
@@ -86,7 +87,7 @@ def test_sync_all_400_for_five_business_days_is_an_error(
     assert any("derivativos_agro" in r.getMessage() for r in caplog.records)
     stats = app.last_download_stats
     assert stats is not None and stats.failed_count == 1
-    assert stats.succeeded_count == 4
+    assert stats.succeeded_count == 0
 
 
 def test_sync_old_file_plus_new_400s_is_an_error(tmp_path: Path) -> None:
@@ -109,4 +110,82 @@ def test_sync_downloads_in_the_same_run_clear_the_streak(tmp_path: Path) -> None
     # só hoje (6/11) sem arquivo, mas os 4 dias anteriores baixam na mesma rodada
     app = make_app(FakeB3({"2026-11-02", "2026-11-03", "2026-11-04", "2026-11-05"}))
     downloaded, total, errors = _sync(app, tmp_path, D(2026, 11, 6))
-    assert (downloaded, total, errors) == (5, 5, [])
+    assert (downloaded, total, errors) == (4, 5, [])  # 4 baixados + hoje sem arquivo
+
+
+def test_daily_dates_conta_o_manifesto_lateral_sem_o_csv(tmp_path: Path) -> None:
+    """Depois do envio o CSV sai da pasta e fica só o manifesto."""
+    repo = DataRepository(tmp_path)
+    pasta = tmp_path / "derivativos_agro" / "2026"
+    pasta.mkdir(parents=True)
+    (pasta / "derivativos_agro-2026-11-02.csv.manifest.json").write_text("{}")
+    (pasta / "derivativos_agro-2026-11-03.csv").write_bytes(b"x")
+    (pasta / "derivativos_agro-2026-11-04.csv.part").write_bytes(b"x")  # parcial
+    assert repo.daily_dates("derivativos_agro") == {D(2026, 11, 2), D(2026, 11, 3)}
+
+
+def test_sync_com_so_o_manifesto_local_nao_acusa_dataset_com_arquivo_recente(
+    tmp_path: Path,
+) -> None:
+    pasta = tmp_path / "derivativos_agro" / "2026"
+    pasta.mkdir(parents=True)
+    (pasta / "derivativos_agro-2026-11-05.csv.manifest.json").write_text("{}")
+    app = make_app(FakeB3(set()))
+    entries = list_datasets("derivativos_agro", today=D(2026, 11, 6))[-1:]
+    _, _, errors = app.download_datasets(entries, tmp_path, workers=1)
+    assert errors == []  # último arquivo é de ontem: 1 dia útil, não 5
+
+
+def _check_plan(app, tmp_path: Path, today: dt.date):
+    entries = list_datasets("derivativos_agro", today=today)
+    return app.check_datasets(entries, tmp_path, workers=2)
+
+
+def test_check_promove_a_download_o_dataset_sem_arquivo_ha_5_dias_uteis(
+    tmp_path: Path,
+) -> None:
+    app = make_app(FakeB3(set()))
+    plan = _check_plan(app, tmp_path, D(2026, 11, 6))
+    assert {i.action for i in plan.items} == {"download"}
+    assert {i.reason for i in plan.items} == {"b3-400-dias-uteis-seguidos"}
+
+
+def test_check_com_um_feriado_segue_skip_unavailable(tmp_path: Path) -> None:
+    app = make_app(FakeB3({"2026-11-02", "2026-11-03", "2026-11-04", "2026-11-06"}))
+    plan = _check_plan(app, tmp_path, D(2026, 11, 6))
+    por_dia = {i.entry["date"]: i for i in plan.items}
+    assert por_dia["2026-11-05"].action == "skip-unavailable"
+    assert por_dia["2026-11-05"].reason == "b3-400"
+    assert por_dia["2026-11-04"].action == "download"
+
+
+def test_check_dias_com_download_pendente_contam_como_arquivo(tmp_path: Path) -> None:
+    # hoje (6/11) ainda sem arquivo, mas os 4 dias anteriores existem na B3:
+    # não são 5 dias úteis sem arquivo, o check não promove nada
+    app = make_app(FakeB3({"2026-11-02", "2026-11-03", "2026-11-04", "2026-11-05"}))
+    plan = _check_plan(app, tmp_path, D(2026, 11, 6))
+    por_dia = {i.entry["date"]: i for i in plan.items}
+    assert por_dia["2026-11-06"].action == "skip-unavailable"
+
+
+def test_fluxo_de_plano_check_depois_from_plan_acusa_o_dataset(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """check -> JSON -> sync --from-plan, com estado limpo (outra instância)."""
+    from quantilica.cli.sdk import CheckPlan
+
+    plano = _check_plan(make_app(FakeB3(set())), tmp_path, D(2026, 11, 6))
+    texto = plano.to_json()
+    novo = make_app(FakeB3(set()))  # processo novo: nenhum estado da rodada anterior
+    lido = CheckPlan.from_json(texto)
+    entries = [
+        novo.entry_from_plan(dict(i.entry))
+        for i in lido.items
+        if i.action == "download"
+    ]
+    assert len(entries) == 5
+    with caplog.at_level(logging.ERROR):
+        downloaded, total, errors = novo.download_datasets(entries, tmp_path, workers=2)
+    assert (downloaded, total) == (0, 5)
+    assert [group for group, _ in errors] == ["derivativos_agro"]
+    assert "desde 2026-11-02" in errors[0][1]

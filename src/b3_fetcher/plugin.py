@@ -5,10 +5,11 @@ from __future__ import annotations
 import datetime as dt
 import logging
 import threading
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
-from quantilica.cli.sdk import CheckPlanItem, FetcherApp
+from quantilica.cli.sdk import CheckPlan, CheckPlanItem, FetcherApp
 from quantilica.core.registry import FetcherInfo
 from quantilica.core.sync import FreshnessPolicy
 
@@ -104,6 +105,15 @@ def streak_without_file(
     return start, last_bad, days
 
 
+def _streak_message(group: str, streak: tuple[dt.date, dt.date, int]) -> str:
+    since, until, count = streak
+    return (
+        f"B3 sem arquivo de {group} desde {since.isoformat()} "
+        f"({count} dias úteis seguidos, até {until.isoformat()}): "
+        "a B3 responde 400 também quando o fileName muda ou o arquivo sai do ar"
+    )
+
+
 class B3FetcherApp(FetcherApp):
     """``FetcherApp`` que sabe resolver os protocolos diários da B3.
 
@@ -151,24 +161,72 @@ class B3FetcherApp(FetcherApp):
             seen = {group: set(days) for group, days in self._unavailable.items()}
         repo = DataRepository(output_dir)
         errors = list(errors)
+        # Um 400 não baixou nada: não conta como baixado (a saída do ``sync`` é 1
+        # se só houve 400 e erro, 3 se algo baixou).
+        without_file = sum(len(days) for days in seen.values())
+        downloaded = max(0, downloaded - without_file)
+        stats = self.last_download_stats
+        if stats is not None:
+            stats.succeeded_count = max(0, stats.succeeded_count - without_file)
         for group, days in sorted(seen.items()):
             streak = streak_without_file(days, repo.daily_dates(group))
             if streak is None:
                 continue
-            since, until, count = streak
-            message = (
-                f"B3 sem arquivo de {group} desde {since.isoformat()} "
-                f"({count} dias úteis seguidos, até {until.isoformat()}): "
-                "a B3 responde 400 também quando o fileName muda ou o arquivo "
-                "sai do ar"
-            )
+            message = _streak_message(group, streak)
             logger.error("%s: %s", group, message)
             errors.append((group, message))
-            stats = self.last_download_stats
             if stats is not None:
-                stats.succeeded_count = max(0, stats.succeeded_count - 1)
                 stats.failed()
         return downloaded, total, errors
+
+    def check_datasets(
+        self, entries: list[dict[str, Any]], output_dir: Path, workers: int = 4
+    ) -> CheckPlan:
+        """Verifica o frescor e promove a ``download`` o dataset sem arquivo há dias.
+
+        O ``check`` marca o ``400`` como ``skip-unavailable``/``b3-400`` e o
+        ``sync --from-plan`` só baixa itens ``download``, então o alarme de dias
+        úteis seguidos sem arquivo nunca rodaria no modo de plano. Aqui a mesma
+        conta do ``sync`` roda sobre o plano: os dias do dataset que fecham
+        ``MAX_BUSINESS_DAYS_WITHOUT_FILE`` viram ``download``, o ``sync`` tenta,
+        recebe o ``400`` e acusa o erro. Dias do plano com ação ``download`` ou
+        já em dia contam como tendo arquivo.
+        """
+        plan = super().check_datasets(entries, output_dir, workers=workers)
+        repo = DataRepository(output_dir)
+        bad: dict[str, set[dt.date]] = {}
+        have: dict[str, set[dt.date]] = {}
+        for item in plan.items:
+            entry = item.entry or {}
+            if entry.get("protocol") != "requestname":
+                continue
+            try:
+                day = dt.date.fromisoformat(str(entry["date"]))
+            except (KeyError, ValueError):
+                continue
+            if item.action == "skip-unavailable" and item.reason == "b3-400":
+                bad.setdefault(item.dataset, set()).add(day)
+            else:
+                have.setdefault(item.dataset, set()).add(day)
+        promote: set[str] = set()
+        for group, days in bad.items():
+            local = repo.daily_dates(group) | have.get(group, set())
+            streak = streak_without_file(days, local)
+            if streak is None:
+                continue
+            logger.error("%s: %s", group, _streak_message(group, streak))
+            promote.add(group)
+        if not promote:
+            return plan
+        items = [
+            replace(item, action="download", reason="b3-400-dias-uteis-seguidos")
+            if item.dataset in promote
+            and item.action == "skip-unavailable"
+            and item.reason == "b3-400"
+            else item
+            for item in plan.items
+        ]
+        return replace(plan, items=items)
 
     def download_entry(
         self,

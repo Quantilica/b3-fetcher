@@ -74,8 +74,9 @@ class DataRepository(BaseDataRepository):
     def daily_dates(self, group: str) -> set[dt.date]:
         """Datas dos arquivos diários já gravados de ``group`` (sem rede).
 
-        Lê só os nomes ``<grupo>-<data>.<ext>`` em ``<grupo>/<ano>/``; manifestos
-        laterais e arquivos parciais ficam de fora.
+        Lê só os nomes ``<grupo>-<data>.<ext>`` em ``<grupo>/<ano>/``. O manifesto
+        lateral (``<nome>.manifest.json``) conta como o arquivo: depois do envio o
+        dado sai da pasta e fica só o manifesto. Arquivos parciais ficam de fora.
         """
         base = self.dataset_path(group)
         dates: set[dt.date] = set()
@@ -92,4 +93,4 @@ class DataRepository(BaseDataRepository):
         return dates
 
 
-_DAILY_DATE = re.compile(r"(\d{4}-\d{2}-\d{2})\.[A-Za-z0-9]+$")
+_DAILY_DATE = re.compile(r"(\d{4}-\d{2}-\d{2})\.[A-Za-z0-9]+(?:\.manifest\.json)?$")
